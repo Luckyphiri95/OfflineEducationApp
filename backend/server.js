@@ -16,7 +16,8 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 
 // SUBJECT ROUTES
-app.use("/api/subjects", subjectRoutes);
+app.use("/api", subjectRoutes);
+//TESTING 
 console.log("Subject routes loaded");
 
 app.get("/", (req, res) => {
