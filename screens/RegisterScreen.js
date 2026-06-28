@@ -1,18 +1,12 @@
-// RegisterScreen.js
-// Handles new user registration — name, email, password, confirm password.
-
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView, // Allows scrolling if the keyboard pushes content off screen
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, StyleSheet, TouchableOpacity,
+  KeyboardAvoidingView, Platform, ScrollView, StatusBar,
 } from 'react-native';
+import colors from '../theme/colors';
+import Input from '../components/Input';
+import Button from '../components/Button';
+import BASE_URL from '../config';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -20,172 +14,175 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   const validate = () => {
-    if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return false;
-    }
-    if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email');
-      return false;
-    }
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return false;
-    }
-    // Confirm both password fields match before submitting
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return false;
-    }
+    if (!name || !email || !password || !confirmPassword) { setError('Please fill in all fields'); return false; }
+    if (!email.includes('@')) { setError('Please enter a valid email address'); return false; }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return false; }
+    if (password !== confirmPassword) { setError('Passwords do not match'); return false; }
+    setError('');
     return true;
   };
 
   const handleRegister = async () => {
     if (!validate()) return;
-
     setLoading(true);
     try {
-      // TODO: Replace with real API call to POST /register
-      // const response = await fetch('http://YOUR_BACKEND/register', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ name, email, password }),
-      // });
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      Alert.alert('Success', 'Account created! Please log in.', [
-        // After dismissing the alert, navigate back to Login
-        { text: 'OK', onPress: () => navigation.navigate('Login') },
-      ]);
-    } catch (error) {
-      Alert.alert('Registration Failed', error.message);
+      const response = await fetch(`${BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: name, email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) { setError(data.message || 'Registration failed. Please try again.'); return; }
+      setSuccess(true);
+    } catch (err) {
+      setError('Could not connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  if (success) {
+    return (
+      <View style={styles.successPage}>
+        <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
+        <View style={styles.successCard}>
+          <Text style={styles.successIcon}>🎉</Text>
+          <Text style={styles.successTitle}>Account Created!</Text>
+          <Text style={styles.successMessage}>
+            Your account has been successfully created. You can now log in and start learning.
+          </Text>
+          <Button title="OK — Go to Login" onPress={() => navigation.navigate('Login')} />
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join and start learning today</Text>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          placeholderTextColor="#aaa"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words" // Capitalize each word in a name
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#aaa"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#aaa"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={true}
-        />
-
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor="#aaa"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry={true}
-        />
-
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Creating Account...' : 'Sign Up'}
-          </Text>
+      {/* Blue top section with back button */}
+      <View style={styles.blueHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
+        <Text style={styles.heroTitle}>Create Account</Text>
+        <Text style={styles.heroSubtitle}>Join and start learning today</Text>
+      </View>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.linkText}>
-            Already have an account? <Text style={styles.linkBold}>Log In</Text>
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
+      {/* White form section */}
+      <View style={styles.formSheet}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Input label="Full Name" value={name} onChangeText={(v) => { setName(v); setError(''); }} placeholder="Enter your full name" />
+          <Input label="Email" value={email} onChangeText={(v) => { setEmail(v); setError(''); }} placeholder="Enter your email" keyboardType="email-address" autoCapitalize="none" />
+          <Input label="Password" value={password} onChangeText={(v) => { setPassword(v); setError(''); }} placeholder="Enter your password" secureTextEntry />
+          <Input label="Confirm Password" value={confirmPassword} onChangeText={(v) => { setConfirmPassword(v); setError(''); }} placeholder="Confirm your password" secureTextEntry />
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <Button title={loading ? 'Creating Account...' : 'Sign Up'} onPress={handleRegister} disabled={loading} />
+
+          <View style={styles.bottomRow}>
+            <Text style={styles.caption}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.linkText}>Log In</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1, // flexGrow instead of flex: 1 so ScrollView expands correctly
-    backgroundColor: '#f5f7fa',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
+  blueHeader: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === 'android' ? 48 : 20,
+    paddingBottom: 40,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#666',
-    marginBottom: 32,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    marginBottom: 14,
-    color: '#1a1a2e',
-  },
-  button: {
-    backgroundColor: '#4a90d9',
-    paddingVertical: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
+  backBtn: {
     marginBottom: 20,
   },
-  buttonDisabled: {
-    backgroundColor: '#a0c4e8',
+  backText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
+    fontWeight: '500',
   },
-  buttonText: {
+  heroTitle: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 30,
+    fontWeight: '700',
+    marginBottom: 8,
   },
-  linkText: {
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  formSheet: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    marginTop: -20,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    marginBottom: 12,
     textAlign: 'center',
-    color: '#666',
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingBottom: 32,
+  },
+  caption: {
+    color: colors.textSecondary,
     fontSize: 14,
   },
-  linkBold: {
-    color: '#4a90d9',
-    fontWeight: '600',
+  linkText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  successPage: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  successCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 28,
+    padding: 32,
+    alignItems: 'center',
+  },
+  successIcon: {
+    fontSize: 56,
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  successMessage: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 28,
   },
 });
