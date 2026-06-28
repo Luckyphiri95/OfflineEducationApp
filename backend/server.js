@@ -6,6 +6,7 @@ const cors = require("cors");
 const db = require("./database/database");
 const authRoutes = require("./routes/authRoutes");
 const subjectRoutes = require("./routes/subjectRoutes");
+const quizRoutes = require("./routes/quizRoutes");
 
 const app = express();
 
@@ -17,8 +18,10 @@ app.use("/api/auth", authRoutes);
 
 // SUBJECT ROUTES
 app.use("/api", subjectRoutes);
-//TESTING 
-console.log("Subject routes loaded");
+
+// QUIZ ROUTES
+app.use("/api", quizRoutes);
+
 
 app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
