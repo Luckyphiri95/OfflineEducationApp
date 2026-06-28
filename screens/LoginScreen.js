@@ -1,175 +1,170 @@
-// LoginScreen.js
-// The first screen users see. Handles email + password login.
-
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView, // Prevents keyboard from covering inputs on iOS
-  Platform,
+  View, Text, StyleSheet, TouchableOpacity,
+  KeyboardAvoidingView, Platform, ScrollView, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native';
+import colors from '../theme/colors';
+import Input from '../components/Input';
+import Button from '../components/Button';
+import BASE_URL from '../config';
 
 export default function LoginScreen({ navigation }) {
-  // useState stores form values locally in this component
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Basic client-side validation before sending to the backend
   const validate = () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return false;
-    }
-    if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return false;
-    }
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return false;
-    }
+    if (!email || !password) { setError('Please fill in all fields'); return false; }
+    if (!email.includes('@')) { setError('Please enter a valid email address'); return false; }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return false; }
+    setError('');
     return true;
   };
 
   const handleLogin = async () => {
-    if (!validate()) return; // Stop if validation fails
-
+    if (!validate()) return;
     setLoading(true);
     try {
-      // TODO: Replace this with a real API call to POST /login
-      // const response = await fetch('http://YOUR_BACKEND/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email, password }),
-      // });
-
-      // Simulate network delay for now
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      Alert.alert('Success', 'Logged in!');
-      // TODO: Navigate to Dashboard once it exists:
-      // navigation.replace('Dashboard');
-    } catch (error) {
-      Alert.alert('Login Failed', error.message);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(`${BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const data = await response.json();
+      if (!response.ok) { setError(data.message || 'Login failed. Please try again.'); return; }
+      navigation.replace('Dashboard', { user: data.user });
+    } catch (err) {
+      setError(err.name === 'AbortError'
+        ? 'Request timed out. Check your network and server IP in config.js.'
+        : 'Could not connect to server. Please try again.');
     } finally {
-      // Always runs — stops the loading spinner whether success or error
       setLoading(false);
     }
   };
 
   return (
-    // KeyboardAvoidingView pushes the form up when keyboard appears
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <Text style={styles.title}>Welcome Back</Text>
-      <Text style={styles.subtitle}>Log in to continue learning</Text>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#aaa"
-        value={email}
-        onChangeText={setEmail}       // Updates state on every keystroke
-        keyboardType="email-address"  // Shows email keyboard on mobile
-        autoCapitalize="none"         // Prevents auto-capitalizing email
-      />
+      {/* Blue top section */}
+      <View style={styles.blueHeader}>
+        <SafeAreaView>
+          <Text style={styles.appName}>EduApp</Text>
+          <Text style={styles.heroTitle}>Welcome Back!</Text>
+          <Text style={styles.heroSubtitle}>Login to continue your learning journey</Text>
+        </SafeAreaView>
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#aaa"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry={true}        // Hides password characters
-      />
+      {/* White form section */}
+      <View style={styles.formSheet}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Input
+            label="Email"
+            value={email}
+            onChangeText={(v) => { setEmail(v); setError(''); }}
+            placeholder="Enter your email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <Input
+            label="Password"
+            value={password}
+            onChangeText={(v) => { setPassword(v); setError(''); }}
+            placeholder="Enter your password"
+            secureTextEntry
+          />
 
-      {/* Navigate to ForgotPassword screen */}
-      <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-        <Text style={styles.forgotText}>Forgot Password?</Text>
-      </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotWrap}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={loading} // Prevent double-tapping while loading
-      >
-        <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
-      </TouchableOpacity>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {/* Navigate to Register screen */}
-      <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.linkText}>
-          Don't have an account? <Text style={styles.linkBold}>Sign Up</Text>
-        </Text>
-      </TouchableOpacity>
+          <Button title={loading ? 'Logging in...' : 'Login'} onPress={handleLogin} disabled={loading} />
+
+          <View style={styles.bottomRow}>
+            <Text style={styles.caption}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Text style={styles.linkText}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f7fa',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+  blueHeader: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 28,
+    paddingTop: Platform.OS === 'android' ? 48 : 20,
+    paddingBottom: 40,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#666',
-    marginBottom: 32,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    marginBottom: 14,
-    color: '#1a1a2e',
-  },
-  forgotText: {
-    color: '#4a90d9',
-    textAlign: 'right',
-    marginBottom: 24,
+  appName: {
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 14,
-  },
-  button: {
-    backgroundColor: '#4a90d9',
-    paddingVertical: 15,
-    borderRadius: 10,
-    alignItems: 'center',
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
     marginBottom: 20,
   },
-  buttonDisabled: {
-    backgroundColor: '#a0c4e8', // Lighter color when disabled
-  },
-  buttonText: {
+  heroTitle: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 30,
+    fontWeight: '700',
+    marginBottom: 8,
   },
-  linkText: {
+  heroSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  formSheet: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    marginTop: -20,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+  },
+  forgotWrap: {
+    alignSelf: 'flex-end',
+    marginBottom: 20,
+    marginTop: -4,
+  },
+  forgotText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    marginBottom: 12,
     textAlign: 'center',
-    color: '#666',
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    paddingBottom: 32,
+  },
+  caption: {
+    color: colors.textSecondary,
     fontSize: 14,
   },
-  linkBold: {
-    color: '#4a90d9',
-    fontWeight: '600',
+  linkText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
