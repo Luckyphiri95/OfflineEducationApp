@@ -118,7 +118,17 @@ cd OfflineEducationApp
 npm install
 ```
 
-### 3. Install backend dependencies
+### 3. Create your local config file
+
+```bash
+cp config.example.js config.js
+```
+
+Then open `config.js` and replace `YOUR_LOCAL_IP` with your machine's IP address (see [Running on a Physical Android Device](#running-on-a-physical-android-device)). If you are only testing on web, no change is needed.
+
+> `config.js` is gitignored — every developer keeps their own copy with their own IP.
+
+### 4. Install backend dependencies
 
 ```bash
 cd backend
