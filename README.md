@@ -1,6 +1,6 @@
 # Offline-First Educational Mobile App
 
-A React Native / Expo mobile application for student learning — featuring subject browsing, quizzes, progress tracking, and PDF study guides.
+A React Native / Expo mobile application for student learning — featuring subject browsing, quizzes, progress tracking, PDF study guides, and an in-app admin panel for managing all content.
 
 ---
 
@@ -11,13 +11,12 @@ A React Native / Expo mobile application for student learning — featuring subj
 3. [Project Structure](#project-structure)
 4. [Setup & Running the Project](#setup--running-the-project)
 5. [Running on a Physical Android Device](#running-on-a-physical-android-device)
-6. [Managing Subjects](#managing-subjects)
-7. [Managing Quiz Questions](#managing-quiz-questions)
-8. [Managing Users](#managing-users)
-9. [Adding a PDF Study Guide](#adding-a-pdf-study-guide)
-10. [Adding Topics for a Subject](#adding-topics-for-a-subject)
-11. [API Reference](#api-reference)
-12. [Troubleshooting](#troubleshooting)
+6. [Admin Panel](#admin-panel)
+7. [Adding a PDF Study Guide](#adding-a-pdf-study-guide)
+8. [Adding Topics for a Subject](#adding-topics-for-a-subject)
+9. [API Reference](#api-reference)
+10. [Testing Checklist](#testing-checklist)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -48,13 +47,13 @@ Make sure the following are installed on your machine before you begin:
 
 ```
 OfflineEducationApp/
-├── App.js                    # Entry point — wraps app in gesture handler
-├── config.js                 # BASE_URL for API (switch between web/Android)
+├── App.js                    # Entry point
+├── config.example.js         # Template — copy to config.js on first setup
+├── config.js                 # Your local BASE_URL (gitignored)
 ├── index.js                  # Expo entry registration
 │
 ├── backend/
 │   ├── server.js             # Express server (port 3000)
-│   ├── API.md                # Full API documentation
 │   ├── controllers/
 │   │   ├── authController.js
 │   │   ├── subjectController.js
@@ -64,41 +63,41 @@ OfflineEducationApp/
 │   │   ├── subjectRoutes.js
 │   │   └── quizRoutes.js
 │   └── database/
-│       ├── database.js       # SQLite table definitions
-│       └── app.db            # SQLite database file (auto-created)
+│       └── database.js       # SQLite table definitions (app.db auto-created)
 │
 ├── navigation/
-│   └── AppNavigator.js       # All screen routes registered here
+│   └── AppNavigator.js       # All screen routes
 │
 ├── screens/
-│   ├── LoginScreen.js
+│   ├── LoginScreen.js        # Student/Admin toggle
 │   ├── RegisterScreen.js
 │   ├── ForgotPasswordScreen.js
 │   ├── DashboardScreen.js
 │   ├── SubjectScreen.js
-│   ├── SubjectDetailsScreen.js  ← topics list + PDF guide URLs live here
+│   ├── SubjectDetailsScreen.js  ← PDF guide URLs and topics live here
 │   ├── QuizScreen.js
 │   ├── ResultsScreen.js
-│   └── ProgressScreen.js
+│   ├── ProgressScreen.js
+│   └── admin/
+│       ├── AdminDashboardScreen.js
+│       ├── AdminSubjectsScreen.js
+│       ├── AdminQuestionsScreen.js
+│       └── AdminUsersScreen.js
 │
 ├── components/
 │   ├── Button.js
-│   ├── Card.js
 │   ├── Input.js
 │   ├── Loader.js
 │   ├── BottomNav.js
 │   ├── ProgressCard.js
 │   ├── StatsCard.js
-│   ├── ScoreDashboard.js
-│   ├── QuestionCard.js
-│   ├── AnswerSelection.js
-│   └── SearchSubjects.js
+│   └── ScoreDashboard.js
 │
 ├── theme/
 │   └── colors.js             # Design system colours
 │
 └── utils/
-    └── progress.js           # Shared helper — fetches & computes progress per subject
+    └── progress.js           # Fetches and computes per-subject progress
 ```
 
 ---
@@ -112,7 +111,7 @@ git clone https://github.com/Luckyphiri95/OfflineEducationApp.git
 cd OfflineEducationApp
 ```
 
-### 2. Install dependencies
+### 2. Install frontend dependencies
 
 ```bash
 npm install
@@ -124,24 +123,17 @@ npm install
 cp config.example.js config.js
 ```
 
-Then open `config.js` and replace `YOUR_LOCAL_IP` with your machine's IP address (see [Running on a Physical Android Device](#running-on-a-physical-android-device)). If you are only testing on web, no change is needed.
+Open `config.js` and replace `YOUR_LOCAL_IP` with your machine's IP address (see [Running on a Physical Android Device](#running-on-a-physical-android-device)). If you are only testing on web, no change is needed.
 
 > `config.js` is gitignored — every developer keeps their own copy with their own IP.
 
 ### 4. Install backend dependencies
 
 ```bash
-cd backend
-npm install
-cd ..
+cd backend && npm install && cd ..
 ```
 
-> If there is no `package.json` inside `backend/`, run this from the root instead:
-> ```bash
-> npm install express cors sqlite3 bcrypt dotenv
-> ```
-
-### 4. Start the backend server
+### 5. Start the backend server
 
 Open a **first terminal** and run:
 
@@ -157,7 +149,7 @@ Server running on port 3000
 
 The database file `backend/database/app.db` is created automatically on first run.
 
-### 5. Start the Expo app
+### 6. Start the Expo app
 
 Open a **second terminal** and run:
 
@@ -169,35 +161,37 @@ npx expo start
 - Scan the **QR code** with the Expo Go app on your phone
 - Press **A** to open in an Android emulator (if one is running)
 
-> **Tip:** Both terminals must stay open while you are testing.
+> Both terminals must stay open while you are testing.
 
 ---
 
 ## Running on a Physical Android Device
 
-When testing on an Android phone, `localhost` points to the phone itself — not your Mac. You must use your Mac's local IP address.
+When testing on an Android phone, `localhost` points to the phone itself — not your machine. You must use your machine's local IP address.
 
-### Step 1 — Find your Mac's IP
+### Step 1 — Find your IP
 
 ```bash
+# Mac
 ipconfig getifaddr en0
+
+# Windows
+ipconfig
 ```
 
 Example output: `192.168.0.5`
 
 ### Step 2 — Update config.js
 
-Open `config.js` in the project root and replace the IP:
-
 ```js
 const BASE_URL = Platform.OS === 'android'
-  ? 'http://192.168.0.5:3000'   // ← replace with YOUR Mac's IP
+  ? 'http://192.168.0.5:3000'   // ← replace with YOUR IP
   : 'http://localhost:3000';
 ```
 
-### Step 3 — Make sure both devices are on the same Wi-Fi network
+### Step 3 — Same Wi-Fi network
 
-Your Mac and Android phone must be connected to the **same Wi-Fi network**.
+Your machine and Android phone must be connected to the **same Wi-Fi network**.
 
 ### Step 4 — Scan the QR code with Expo Go
 
@@ -205,128 +199,64 @@ Run `npx expo start` and scan the QR code shown in the terminal.
 
 ---
 
-## Managing Subjects
+## Admin Panel
 
-Subjects are stored in the backend database and displayed dynamically in the app. No code changes are needed to add or remove subjects.
+The app includes a built-in admin panel for managing subjects, quiz questions, and users — no terminal or database access required.
 
-### Add a subject
+### Granting admin access
 
-```bash
-curl -X POST http://localhost:3000/api/subjects \
-  -H "Content-Type: application/json" \
-  -d '{"name": "History", "description": "World and South African history"}'
-```
-
-Note the `subjectId` returned — you will need it for quiz questions and topics.
-
-### Edit a subject
+Admin accounts are regular accounts with an `is_admin` flag set in the database. Run this once per admin account:
 
 ```bash
-curl -X PUT http://localhost:3000/api/subjects/1 \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Advanced Mathematics", "description": "Updated description"}'
+sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"
 ```
 
-### Delete a subject
+Restart the server after making this change.
 
-```bash
-curl -X DELETE http://localhost:3000/api/subjects/1
-```
+### Logging in as admin
 
-### View all subjects
+On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the admin credentials. If the account does not have admin access, login will be blocked with an error message.
 
-```bash
-curl http://localhost:3000/api/subjects
-```
+### What the admin panel can do
 
----
+| Screen | Actions |
+|---|---|
+| **Admin Dashboard** | Overview — total subjects, questions, and users |
+| **Subjects** | Add, edit, and delete subjects |
+| **Quiz Questions** | Select a subject, then add, edit, and delete questions |
+| **Users** | View all registered users, delete accounts |
 
-## Managing Quiz Questions
+### Adding a new subject
 
-There is currently no HTTP endpoint to add quiz questions, so questions are added directly to the SQLite database.
+1. Log in as admin → tap **Subjects**
+2. Tap **+ Add Subject**, fill in the name and description, tap **Save**
+3. Note the subject ID (visible in the database or returned when listing subjects) — you will need it to add topics and a PDF guide
 
-### Open the database
+### Adding quiz questions
 
-```bash
-sqlite3 backend/database/app.db
-```
+1. Log in as admin → tap **Quiz Questions**
+2. Select the subject using the chips at the top
+3. Tap **+ Add Question**, fill in the question, four options, and select the correct answer (A/B/C/D)
+4. Tap **Save**
 
-### Add a question
+### Resetting the database
 
-```sql
-INSERT INTO quiz (subject_id, question, option_a, option_b, option_c, option_d, correct_answer)
-VALUES (1, 'What is 2 + 2?', '1', '2', '3', '4', '4');
-```
-
-- `subject_id` must match an existing subject's `id`
-- `correct_answer` must be the **exact text** of one of the four options
-
-### View all questions
-
-```sql
-SELECT * FROM quiz;
-```
-
-### View questions for a specific subject
-
-```sql
-SELECT * FROM quiz WHERE subject_id = 1;
-```
-
-### Delete a question
-
-```sql
-DELETE FROM quiz WHERE id = 3;
-```
-
-### Exit SQLite
-
-```sql
-.exit
-```
-
----
-
-## Managing Users
-
-### View all registered users
-
-```bash
-curl http://localhost:3000/api/auth/users
-```
-
-### Register a user (same as the app Register screen)
-
-```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username": "Lucky", "email": "lucky@example.com", "password": "password123"}'
-```
-
-### Delete a user directly in the database
-
-```bash
-sqlite3 backend/database/app.db "DELETE FROM users WHERE email = 'lucky@example.com';"
-```
-
-### Reset a corrupted database
-
-If the database behaves unexpectedly (login errors, 500 errors), delete it and restart the server — it will be recreated with empty tables:
+If the database becomes corrupted or you want a clean slate:
 
 ```bash
 rm backend/database/app.db
 node backend/server.js
 ```
 
-Then re-seed your subjects and quiz questions.
+All tables are recreated automatically. You will need to re-grant admin access and re-add subjects and questions.
 
 ---
 
 ## Adding a PDF Study Guide
 
-PDF study guides are configured per subject in `screens/SubjectDetailsScreen.js`.
+PDF study guides are configured per subject in [screens/SubjectDetailsScreen.js](screens/SubjectDetailsScreen.js).
 
-Open the file and find the `PDF_GUIDES` map near the top:
+Find the `PDF_GUIDES` map near the top of the file:
 
 ```js
 const PDF_GUIDES = {
@@ -337,34 +267,21 @@ const PDF_GUIDES = {
 };
 ```
 
-**To add a guide:** replace `null` with the full URL of the PDF or web page.
+Replace `null` with the full URL of the PDF or web page. Supported link types: Google Drive, Dropbox, OneDrive, or any direct public URL.
 
-**Supported URL types:**
-- Google Drive share link — `https://drive.google.com/file/d/FILE_ID/view`
-- Dropbox link — `https://www.dropbox.com/s/XXXXX/file.pdf?dl=0`
-- OneDrive link
-- Direct PDF URL — `https://yourserver.com/guides/maths.pdf`
-- Any publicly accessible web page
-
-**For a new subject** added via the API, add its `id` and URL to this map:
+When a new subject is added via the admin panel, find its ID in the database and add an entry here:
 
 ```js
-const PDF_GUIDES = {
-  1: null,
-  2: null,
-  3: null,
-  4: 'https://...',
-  5: 'https://...',  // ← new subject with id 5
-};
+5: 'https://your-guide-url.com/guide.pdf',  // ← new subject id 5
 ```
 
-Until a URL is added, the button shows "Coming soon" and tapping it shows a friendly alert.
+Until a URL is added, the button shows "Coming soon" and tapping it displays a friendly alert.
 
 ---
 
 ## Adding Topics for a Subject
 
-Topics shown on the Subject Details screen are configured in `screens/SubjectDetailsScreen.js`.
+Topics shown on the Subject Details screen are configured in [screens/SubjectDetailsScreen.js](screens/SubjectDetailsScreen.js).
 
 Find the `TOPICS_BY_SUBJECT` map:
 
@@ -377,7 +294,7 @@ const TOPICS_BY_SUBJECT = {
 };
 ```
 
-Add a new entry using the subject's `id` from the database:
+Add a new entry using the subject's ID:
 
 ```js
 5: ['Ancient civilisations', 'The apartheid era', 'World War history', 'SA political history'],
@@ -389,20 +306,74 @@ If a subject has no entry in this map, it falls back to a default generic topics
 
 ## API Reference
 
-Full documentation is in `backend/API.md`. Quick reference:
-
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/auth/register` | Register a new user |
-| POST | `/api/auth/login` | Login |
+| POST | `/api/auth/login` | Login (returns `is_admin` flag) |
 | GET | `/api/auth/users` | List all users |
+| DELETE | `/api/auth/users/:id` | Delete a user |
 | GET | `/api/subjects` | List all subjects |
 | POST | `/api/subjects` | Create a subject |
 | PUT | `/api/subjects/:id` | Update a subject |
 | DELETE | `/api/subjects/:id` | Delete a subject |
 | GET | `/api/quiz` | Get all quiz questions |
-| POST | `/api/submitQuiz` | Submit answers + get score |
+| POST | `/api/quiz` | Add a quiz question |
+| PUT | `/api/quiz/:id` | Update a quiz question |
+| DELETE | `/api/quiz/:id` | Delete a quiz question |
+| POST | `/api/submitQuiz` | Submit answers and get score |
 | GET | `/api/results` | Get all quiz results |
+
+---
+
+## Testing Checklist
+
+Use this checklist when testing the app end-to-end on a new machine or after a fresh database reset.
+
+### Setup
+
+- [ ] Cloned repo, ran `npm install` and `cd backend && npm install`
+- [ ] Copied `config.example.js` to `config.js` and set correct IP
+- [ ] Backend starts without errors (`node backend/server.js`)
+- [ ] Expo starts without errors (`npx expo start`)
+- [ ] App loads on web or device
+
+### Student flow
+
+- [ ] Register a new account on the Register screen
+- [ ] Log in using the **Student** toggle
+- [ ] Dashboard loads — subjects appear, progress bars show 0%
+- [ ] Navigate to a subject — subject details and topics are visible
+- [ ] Start a quiz — questions load correctly
+- [ ] Answer all questions and submit — Results screen shows score
+- [ ] Return to Dashboard — progress bar for that subject has updated
+- [ ] Navigate to Progress screen — stats and recent quizzes match Dashboard
+- [ ] Tap **View Study Guide** on Computer Studies — opens the link in a browser
+- [ ] Tap **View Study Guide** on another subject — shows "Coming soon" alert
+- [ ] Forgot Password flow completes without error
+
+### Admin flow
+
+- [ ] Grant admin access: `sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"`
+- [ ] Restart the backend server
+- [ ] On the Login screen, switch to the **Admin** toggle and log in
+- [ ] Admin Dashboard loads with correct subject, question, and user counts
+- [ ] **Subjects** — add a new subject, it appears in the list immediately
+- [ ] **Subjects** — edit the subject name, change is reflected
+- [ ] **Subjects** — delete the subject, it disappears from the list
+- [ ] **Quiz Questions** — select a subject, add a question with correct answer set to B or C (not just A)
+- [ ] **Quiz Questions** — edit the question, save, verify the change
+- [ ] **Quiz Questions** — delete the question
+- [ ] **Users** — all registered users appear in the list
+- [ ] **Users** — your own account shows a "You" badge and has no Delete button
+- [ ] **Users** — delete another user, confirm they disappear from the list
+- [ ] Log out (navigate back to Login) — switch to Student toggle, confirm non-admin accounts cannot log in via Admin toggle
+
+### Edge cases
+
+- [ ] Attempting to log in with wrong password shows an error
+- [ ] Attempting Admin login with a non-admin account shows "This account does not have admin access"
+- [ ] Taking a quiz for a subject with no questions shows a "No questions found" message
+- [ ] Progress bars do not go negative or exceed 100%
 
 ---
 
@@ -410,47 +381,42 @@ Full documentation is in `backend/API.md`. Quick reference:
 
 ### "Could not connect to server" on Android
 
-- Make sure `config.js` has your Mac's current local IP (run `ipconfig getifaddr en0`)
+- Check that `config.js` has your machine's current local IP (`ipconfig getifaddr en0` on Mac)
 - Both devices must be on the same Wi-Fi network
-- Your Mac firewall must allow incoming connections on port 3000
+- Your machine's firewall must allow incoming connections on port 3000
 
 ### Login or Register does nothing on web
 
 - The backend must be running (`node backend/server.js` in a separate terminal)
-- Check the terminal for error messages
+- Check the backend terminal for error messages
 
-### 500 error on login/register
+### 500 error on login or register
 
-The database may be corrupted. Delete it and restart:
+The database may be corrupted. Delete it and restart the server:
+
 ```bash
 rm backend/database/app.db
 node backend/server.js
 ```
 
+Then re-grant admin access and re-add content via the admin panel.
+
 ### Quiz screen shows "No questions found"
 
-No questions have been seeded for that subject yet. Add them via SQLite — see [Managing Quiz Questions](#managing-quiz-questions).
+No questions have been added for that subject yet. Log in as admin and add questions via the **Quiz Questions** screen.
 
-### QR code not showing when running `npm run dev`
+### Admin toggle not working after login
 
-The `concurrently` script suppresses Expo's interactive display. Run the backend and Expo in **separate terminals** instead:
-
-```bash
-# Terminal 1
-node backend/server.js
-
-# Terminal 2
-npx expo start
-```
+Make sure you restarted the backend server after running the `UPDATE users SET is_admin` command.
 
 ### Port 3000 already in use
 
-Another process is using port 3000. Find and kill it:
 ```bash
 lsof -ti:3000 | xargs kill -9
 ```
+
 Then restart the backend.
 
 ### Progress bars not updating after a quiz
 
-Pull down to refresh on the Dashboard or Subjects screen. If still not updating, check that `POST /api/submitQuiz` is returning a `200` response in the backend terminal.
+Navigate away and come back — screens use `useFocusEffect` to refresh automatically. If still not updating, check that `POST /api/submitQuiz` returns a `200` response in the backend terminal.
