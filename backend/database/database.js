@@ -22,9 +22,12 @@ db.serialize(() => {
       username TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password TEXT NOT NULL,
+      is_admin INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Add is_admin to existing databases that were created before this column existed
+  db.run(`ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0`, () => {});
 });
 
 // ======================
