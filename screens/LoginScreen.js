@@ -14,6 +14,7 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const validate = () => {
     if (!email || !password) { setError('Please fill in all fields'); return false; }
@@ -38,7 +39,13 @@ export default function LoginScreen({ navigation }) {
       clearTimeout(timeout);
       const data = await response.json();
       if (!response.ok) { setError(data.message || 'Login failed. Please try again.'); return; }
-      navigation.replace('Dashboard', { user: data.user });
+
+      if (isAdmin && !data.user.is_admin) {
+        setError('This account does not have admin access.');
+        return;
+      }
+
+      navigation.replace(isAdmin ? 'AdminDashboard' : 'Dashboard', { user: data.user });
     } catch (err) {
       setError(err.name === 'AbortError'
         ? 'Request timed out. Check your network and server IP in config.js.'
@@ -64,6 +71,23 @@ export default function LoginScreen({ navigation }) {
       {/* White form section */}
       <View style={styles.formSheet}>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+          {/* Student / Admin toggle */}
+          <View style={styles.toggle}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, !isAdmin && styles.toggleBtnActive]}
+              onPress={() => { setIsAdmin(false); setError(''); }}
+            >
+              <Text style={[styles.toggleText, !isAdmin && styles.toggleTextActive]}>Student</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, isAdmin && styles.toggleBtnActive]}
+              onPress={() => { setIsAdmin(true); setError(''); }}
+            >
+              <Text style={[styles.toggleText, isAdmin && styles.toggleTextActive]}>Admin</Text>
+            </TouchableOpacity>
+          </View>
+
           <Input
             label="Email"
             value={email}
@@ -88,12 +112,14 @@ export default function LoginScreen({ navigation }) {
 
           <Button title={loading ? 'Logging in...' : 'Login'} onPress={handleLogin} disabled={loading} />
 
-          <View style={styles.bottomRow}>
-            <Text style={styles.caption}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.linkText}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
+          {!isAdmin && (
+            <View style={styles.bottomRow}>
+              <Text style={styles.caption}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                <Text style={styles.linkText}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -134,6 +160,30 @@ const styles = StyleSheet.create({
     marginTop: -20,
     paddingHorizontal: 24,
     paddingTop: 32,
+  },
+  toggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  toggleBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  toggleTextActive: {
+    color: '#fff',
   },
   forgotWrap: {
     alignSelf: 'flex-end',
