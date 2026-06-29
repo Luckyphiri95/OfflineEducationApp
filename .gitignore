@@ -44,3 +44,9 @@ yarn-error.*
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Machine-specific config (contains local IP address — each dev sets their own)
+config.js
+
+# SQLite database — auto-created on server start, contains local data
+backend/database/app.db

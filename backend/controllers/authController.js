@@ -64,7 +64,8 @@ const login = (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        is_admin: user.is_admin || 0
       }
     });
   });
@@ -75,7 +76,7 @@ const login = (req, res) => {
 // GET ALL USERS
 // ======================
 const getUsers = (req, res) => {
-  const query = `SELECT id, username, email, created_at FROM users`;
+  const query = `SELECT id, username, email, is_admin, created_at FROM users`;
 
   db.all(query, [], (err, rows) => {
     if (err) {
@@ -87,8 +88,27 @@ const getUsers = (req, res) => {
 };
 
 
+// ======================
+// DELETE USER
+// ======================
+const deleteUser = (req, res) => {
+  const { id } = req.params;
+
+  db.run(`DELETE FROM users WHERE id = ?`, [id], function (err) {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.status(200).json({ message: "User deleted" });
+  });
+};
+
+
 module.exports = {
   register,
   login,
-  getUsers
+  getUsers,
+  deleteUser
 };

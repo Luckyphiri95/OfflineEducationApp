@@ -11,6 +11,10 @@ import SubjectDetailsScreen from '../screens/SubjectDetailsScreen';
 import QuizScreen from '../screens/QuizScreen';
 import ResultsScreen from '../screens/ResultsScreen';
 import ProgressScreen from '../screens/ProgressScreen';
+import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
+import AdminSubjectsScreen from '../screens/admin/AdminSubjectsScreen';
+import AdminQuestionsScreen from '../screens/admin/AdminQuestionsScreen';
+import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 
 const Stack = createStackNavigator();
 
@@ -27,6 +31,10 @@ export default function AppNavigator() {
         <Stack.Screen name="Quiz" component={QuizScreen} />
         <Stack.Screen name="Results" component={ResultsScreen} />
         <Stack.Screen name="Progress" component={ProgressScreen} />
+        <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+        <Stack.Screen name="AdminSubjects" component={AdminSubjectsScreen} />
+        <Stack.Screen name="AdminQuestions" component={AdminQuestionsScreen} />
+        <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -89,8 +89,77 @@ const getResults = (req, res) => {
 };
 
 
+// ======================
+// CREATE QUESTION
+// ======================
+const createQuestion = (req, res) => {
+  const { subject_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
+
+  if (!subject_id || !question || !option_a || !option_b || !option_c || !option_d || !correct_answer) {
+    return res.status(400).json({ message: "All fields required" });
+  }
+
+  const query = `
+    INSERT INTO quiz (subject_id, question, option_a, option_b, option_c, option_d, correct_answer)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.run(query, [subject_id, question, option_a, option_b, option_c, option_d, correct_answer], function (err) {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+    return res.status(201).json({ message: "Question created", questionId: this.lastID });
+  });
+};
+
+
+// ======================
+// UPDATE QUESTION
+// ======================
+const updateQuestion = (req, res) => {
+  const { id } = req.params;
+  const { subject_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
+
+  const query = `
+    UPDATE quiz SET subject_id = ?, question = ?, option_a = ?, option_b = ?,
+    option_c = ?, option_d = ?, correct_answer = ? WHERE id = ?
+  `;
+
+  db.run(query, [subject_id, question, option_a, option_b, option_c, option_d, correct_answer, id], function (err) {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ message: "Question not found" });
+    }
+    return res.status(200).json({ message: "Question updated" });
+  });
+};
+
+
+// ======================
+// DELETE QUESTION
+// ======================
+const deleteQuestion = (req, res) => {
+  const { id } = req.params;
+
+  db.run(`DELETE FROM quiz WHERE id = ?`, [id], function (err) {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ message: "Question not found" });
+    }
+    return res.status(200).json({ message: "Question deleted" });
+  });
+};
+
+
 module.exports = {
   getQuiz,
   submitQuiz,
-  getResults
+  getResults,
+  createQuestion,
+  updateQuestion,
+  deleteQuestion
 };
