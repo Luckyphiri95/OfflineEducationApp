@@ -102,6 +102,18 @@ OfflineEducationApp/
 
 ---
 
+## Backend
+
+The backend is hosted on Render at:
+
+```
+https://offlineeducationapp.onrender.com
+```
+
+> **Note:** Render's free tier spins down after 15 minutes of inactivity. The first request after a period of inactivity may take ~30 seconds. Open the app once before a demo to warm it up.
+
+---
+
 ## Setup & Running the Project
 
 ### 1. Clone the repository
@@ -123,19 +135,35 @@ npm install
 cp config.example.js config.js
 ```
 
-Open `config.js` and replace `YOUR_LOCAL_IP` with your machine's IP address (see [Running on a Physical Android Device](#running-on-a-physical-android-device)). If you are only testing on web, no change is needed.
+The default config points to the hosted Render backend — no changes needed for normal use.
 
-> `config.js` is gitignored — every developer keeps their own copy with their own IP.
+If you want to run the backend locally instead, update `config.js` with your machine's IP (see [Running the Backend Locally](#running-the-backend-locally)).
 
-### 4. Install backend dependencies
+> `config.js` is gitignored — every developer keeps their own copy.
+
+### 4. Start the Expo app
+
+```bash
+npx expo start
+```
+
+- Press **W** to open in a web browser
+- Scan the **QR code** with the Expo Go app on your phone
+- Press **A** to open in an Android emulator (if one is running)
+
+---
+
+## Running the Backend Locally
+
+Only needed if you want to develop or test backend changes without deploying to Render.
+
+### 1. Install backend dependencies
 
 ```bash
 cd backend && npm install && cd ..
 ```
 
-### 5. Start the backend server
-
-Open a **first terminal** and run:
+### 2. Start the backend server
 
 ```bash
 node backend/server.js
@@ -147,55 +175,48 @@ Connected to SQLite database
 Server running on port 3000
 ```
 
-The database file `backend/database/app.db` is created automatically on first run.
+### 3. Update config.js to point to localhost
 
-### 6. Start the Expo app
-
-Open a **second terminal** and run:
-
-```bash
-npx expo start
+```js
+const BASE_URL = 'http://localhost:3000';
+export default BASE_URL;
 ```
 
-- Press **W** to open in a web browser
-- Scan the **QR code** with the Expo Go app on your phone
-- Press **A** to open in an Android emulator (if one is running)
+For Android device testing on local backend, use your machine's IP:
 
-> Both terminals must stay open while you are testing.
+```bash
+ipconfig getifaddr en0   # Mac
+```
+
+```js
+const BASE_URL = 'http://192.168.0.5:3000';  // replace with your IP
+export default BASE_URL;
+```
+
+Your machine and Android phone must be on the **same Wi-Fi network**.
 
 ---
 
-## Running on a Physical Android Device
+## Building the APK
 
-When testing on an Android phone, `localhost` points to the phone itself — not your machine. You must use your machine's local IP address.
+The app is built using EAS (Expo Application Services). The `preview` profile produces an installable `.apk` file.
 
-### Step 1 — Find your IP
+### Prerequisites
 
 ```bash
-# Mac
-ipconfig getifaddr en0
-
-# Windows
-ipconfig
+npm install -g eas-cli
+eas login
 ```
 
-Example output: `192.168.0.5`
+### Build
 
-### Step 2 — Update config.js
-
-```js
-const BASE_URL = Platform.OS === 'android'
-  ? 'http://192.168.0.5:3000'   // ← replace with YOUR IP
-  : 'http://localhost:3000';
+```bash
+eas build -p android --profile preview
 ```
 
-### Step 3 — Same Wi-Fi network
+The build runs in the cloud and takes 10–15 minutes. When done, EAS provides a download link for the APK. Share the APK file directly — testers just need to allow **Install from unknown sources** in their Android settings.
 
-Your machine and Android phone must be connected to the **same Wi-Fi network**.
-
-### Step 4 — Scan the QR code with Expo Go
-
-Run `npx expo start` and scan the QR code shown in the terminal.
+> The APK connects to the hosted Render backend, so testers do not need to be on the same Wi-Fi network.
 
 ---
 
@@ -379,11 +400,11 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 
 ## Troubleshooting
 
-### "Could not connect to server" on Android
+### "Could not connect to server"
 
-- Check that `config.js` has your machine's current local IP (`ipconfig getifaddr en0` on Mac)
-- Both devices must be on the same Wi-Fi network
-- Your machine's firewall must allow incoming connections on port 3000
+- Check that `config.js` points to `https://offlineeducationapp.onrender.com`
+- If using the local backend, check that `node backend/server.js` is running and `config.js` has your correct local IP
+- Render free tier may be cold-starting — wait 30 seconds and try again
 
 ### Login or Register does nothing on web
 
