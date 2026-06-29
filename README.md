@@ -26,7 +26,7 @@ A React Native / Expo mobile application for student learning — featuring subj
 |---|---|
 | Mobile App | React Native + Expo SDK 56 |
 | Navigation | React Navigation v7 (Stack) |
-| Backend | Node.js + Express |
+| Backend | Node.js + Express (runs locally) |
 | Database | SQLite (via sqlite3) |
 | Auth | bcrypt password hashing |
 
@@ -40,6 +40,7 @@ Make sure the following are installed on your machine before you begin:
 - **npm** v9 or higher (comes with Node.js)
 - **Expo Go** app on your phone — install from the App Store or Google Play
 - **Git** — https://git-scm.com
+- **sqlite3** CLI — for granting admin access (`brew install sqlite3` on Mac)
 
 ---
 
@@ -102,18 +103,6 @@ OfflineEducationApp/
 
 ---
 
-## Backend
-
-The backend is hosted on Render at:
-
-```
-https://offlineeducationapp.onrender.com
-```
-
-> **Note:** Render's free tier spins down after 15 minutes of inactivity. The first request after a period of inactivity may take ~30 seconds. Open the app once before a demo to warm it up.
-
----
-
 ## Setup & Running the Project
 
 ### 1. Clone the repository
@@ -129,41 +118,33 @@ cd OfflineEducationApp
 npm install
 ```
 
-### 3. Create your local config file
-
-```bash
-cp config.example.js config.js
-```
-
-The default config points to the hosted Render backend — no changes needed for normal use.
-
-If you want to run the backend locally instead, update `config.js` with your machine's IP (see [Running the Backend Locally](#running-the-backend-locally)).
-
-> `config.js` is gitignored — every developer keeps their own copy.
-
-### 4. Start the Expo app
-
-```bash
-npx expo start
-```
-
-- Press **W** to open in a web browser
-- Scan the **QR code** with the Expo Go app on your phone
-- Press **A** to open in an Android emulator (if one is running)
-
----
-
-## Running the Backend Locally
-
-Only needed if you want to develop or test backend changes without deploying to Render.
-
-### 1. Install backend dependencies
+### 3. Install backend dependencies
 
 ```bash
 cd backend && npm install && cd ..
 ```
 
-### 2. Start the backend server
+### 4. Create your local config file
+
+```bash
+cp config.example.js config.js
+```
+
+Open `config.js` and set the URL:
+
+- **Web browser testing** — use `http://localhost:3000`
+- **Android device testing** — use your machine's local IP (see [Running on a Physical Android Device](#running-on-a-physical-android-device))
+
+```js
+const BASE_URL = 'http://localhost:3000';
+export default BASE_URL;
+```
+
+> `config.js` is gitignored — every developer keeps their own copy.
+
+### 5. Start the backend server
+
+Open a **first terminal** and run:
 
 ```bash
 node backend/server.js
@@ -175,68 +156,78 @@ Connected to SQLite database
 Server running on port 3000
 ```
 
-### 3. Update config.js to point to localhost
+The database file `backend/database/app.db` is created automatically on first run. Keep this terminal open — the server must stay running while using the app.
 
-```js
-const BASE_URL = 'http://localhost:3000';
-export default BASE_URL;
-```
+> **Important:** If the terminal returns to the prompt immediately, another process may still be using port 3000. Run `lsof -ti:3000 | xargs kill -9` then restart the server.
 
-For Android device testing on local backend, use your machine's IP:
+### 6. Start the Expo app
+
+Open a **second terminal** and run:
 
 ```bash
-ipconfig getifaddr en0   # Mac
+npx expo start
 ```
 
-```js
-const BASE_URL = 'http://192.168.0.5:3000';  // replace with your IP
-export default BASE_URL;
-```
+- Press **W** to open in a web browser
+- Scan the **QR code** with the Expo Go app on your phone
+- Press **A** to open in an Android emulator (if one is running)
 
-Your machine and Android phone must be on the **same Wi-Fi network**.
+Both terminals must stay open while testing.
 
 ---
 
-## Building the APK
+## Running on a Physical Android Device
 
-The app is built using EAS (Expo Application Services). The `preview` profile produces an installable `.apk` file.
+When testing on an Android phone, `localhost` points to the phone itself — not your machine. You must use your machine's local IP address.
 
-### Prerequisites
-
-```bash
-npm install -g eas-cli
-eas login
-```
-
-### Build
+### Step 1 — Find your IP
 
 ```bash
-eas build -p android --profile preview
+# Mac
+ipconfig getifaddr en0
+
+# Windows
+ipconfig
 ```
 
-The build runs in the cloud and takes 10–15 minutes. When done, EAS provides a download link for the APK. Share the APK file directly — testers just need to allow **Install from unknown sources** in their Android settings.
+Example output: `192.168.0.5`
 
-> The APK connects to the hosted Render backend, so testers do not need to be on the same Wi-Fi network.
+### Step 2 — Update config.js
+
+```js
+const BASE_URL = 'http://192.168.0.5:3000';  // ← replace with your IP
+export default BASE_URL;
+```
+
+### Step 3 — Same Wi-Fi network
+
+Your machine and Android phone must be connected to the **same Wi-Fi network**.
+
+### Step 4 — Scan the QR code with Expo Go
+
+Run `npx expo start` and scan the QR code shown in the terminal.
 
 ---
 
 ## Admin Panel
 
-The app includes a built-in admin panel for managing subjects, quiz questions, and users — no terminal or database access required.
+The app includes a built-in admin panel for managing subjects, quiz questions, and users — no terminal or database access required after initial setup.
 
 ### Granting admin access
 
-Admin accounts are regular accounts with an `is_admin` flag set in the database. Run this once per admin account:
+Admin accounts are regular user accounts with an `is_admin` flag. After registering an account through the app, run this command to grant admin access:
 
 ```bash
 sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"
 ```
 
-Restart the server after making this change.
+Then **restart the backend server** — kill it with Ctrl+C and run `node backend/server.js` again.
+
+> Only one server instance should be running. Check with `lsof -ti:3000` before restarting.
 
 ### Logging in as admin
 
-On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the admin credentials. If the account does not have admin access, login will be blocked with an error message.
+On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the admin credentials. Non-admin accounts attempting admin login will be blocked with an error.
 
 ### What the admin panel can do
 
@@ -251,7 +242,7 @@ On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the
 
 1. Log in as admin → tap **Subjects**
 2. Tap **+ Add Subject**, fill in the name and description, tap **Save**
-3. Note the subject ID (visible in the database or returned when listing subjects) — you will need it to add topics and a PDF guide
+3. Note the subject ID — you will need it to add topics and a PDF guide in the code
 
 ### Adding quiz questions
 
@@ -269,7 +260,7 @@ rm backend/database/app.db
 node backend/server.js
 ```
 
-All tables are recreated automatically. You will need to re-grant admin access and re-add subjects and questions.
+All tables are recreated automatically. You will need to re-grant admin access and re-add subjects and questions via the admin panel.
 
 ---
 
@@ -290,7 +281,7 @@ const PDF_GUIDES = {
 
 Replace `null` with the full URL of the PDF or web page. Supported link types: Google Drive, Dropbox, OneDrive, or any direct public URL.
 
-When a new subject is added via the admin panel, find its ID in the database and add an entry here:
+When a new subject is added via the admin panel, find its ID and add an entry here:
 
 ```js
 5: 'https://your-guide-url.com/guide.pdf',  // ← new subject id 5
@@ -327,6 +318,8 @@ If a subject has no entry in this map, it falls back to a default generic topics
 
 ## API Reference
 
+All endpoints are available at `http://localhost:3000`.
+
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/auth/register` | Register a new user |
@@ -353,8 +346,8 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 ### Setup
 
 - [ ] Cloned repo, ran `npm install` and `cd backend && npm install`
-- [ ] Copied `config.example.js` to `config.js` and set correct IP
-- [ ] Backend starts without errors (`node backend/server.js`)
+- [ ] Copied `config.example.js` to `config.js` and set `http://localhost:3000` (web) or local IP (Android)
+- [ ] Backend starts and stays running (`node backend/server.js`)
 - [ ] Expo starts without errors (`npx expo start`)
 - [ ] App loads on web or device
 
@@ -365,7 +358,7 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 - [ ] Dashboard loads — subjects appear, progress bars show 0%
 - [ ] Navigate to a subject — subject details and topics are visible
 - [ ] Start a quiz — questions load correctly
-- [ ] Answer all questions and submit — Results screen shows score
+- [ ] Answer all questions and submit — Results screen shows correct score
 - [ ] Return to Dashboard — progress bar for that subject has updated
 - [ ] Navigate to Progress screen — stats and recent quizzes match Dashboard
 - [ ] Tap **View Study Guide** on Computer Studies — opens the link in a browser
@@ -374,20 +367,20 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 
 ### Admin flow
 
-- [ ] Grant admin access: `sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"`
-- [ ] Restart the backend server
-- [ ] On the Login screen, switch to the **Admin** toggle and log in
+- [ ] Register an account, then grant admin: `sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"`
+- [ ] Restart the backend server (only one instance running — check with `lsof -ti:3000`)
+- [ ] Switch to the **Admin** toggle on Login and log in
 - [ ] Admin Dashboard loads with correct subject, question, and user counts
 - [ ] **Subjects** — add a new subject, it appears in the list immediately
 - [ ] **Subjects** — edit the subject name, change is reflected
 - [ ] **Subjects** — delete the subject, it disappears from the list
-- [ ] **Quiz Questions** — select a subject, add a question with correct answer set to B or C (not just A)
+- [ ] **Quiz Questions** — select a subject, add a question with correct answer set to B or C
 - [ ] **Quiz Questions** — edit the question, save, verify the change
 - [ ] **Quiz Questions** — delete the question
 - [ ] **Users** — all registered users appear in the list
 - [ ] **Users** — your own account shows a "You" badge and has no Delete button
 - [ ] **Users** — delete another user, confirm they disappear from the list
-- [ ] Log out (navigate back to Login) — switch to Student toggle, confirm non-admin accounts cannot log in via Admin toggle
+- [ ] Log out — switch to Student toggle, confirm non-admin accounts are blocked from Admin login
 
 ### Edge cases
 
@@ -400,16 +393,29 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 
 ## Troubleshooting
 
+### Server exits immediately after starting
+
+Another process may already be using port 3000:
+
+```bash
+lsof -ti:3000 | xargs kill -9
+node backend/server.js
+```
+
 ### "Could not connect to server"
 
-- Check that `config.js` points to `https://offlineeducationapp.onrender.com`
-- If using the local backend, check that `node backend/server.js` is running and `config.js` has your correct local IP
-- Render free tier may be cold-starting — wait 30 seconds and try again
+- Confirm the backend is running (`node backend/server.js` in a separate terminal)
+- Check `config.js` has the correct URL (`http://localhost:3000` for web, local IP for Android)
+- For Android device testing, confirm both devices are on the same Wi-Fi network
 
-### Login or Register does nothing on web
+### "User not found" after granting admin
 
-- The backend must be running (`node backend/server.js` in a separate terminal)
-- Check the backend terminal for error messages
+The server was not restarted after the `UPDATE users` command, or multiple server instances are running. Kill all instances and restart:
+
+```bash
+lsof -ti:3000 | xargs kill -9
+node backend/server.js
+```
 
 ### 500 error on login or register
 
@@ -425,10 +431,6 @@ Then re-grant admin access and re-add content via the admin panel.
 ### Quiz screen shows "No questions found"
 
 No questions have been added for that subject yet. Log in as admin and add questions via the **Quiz Questions** screen.
-
-### Admin toggle not working after login
-
-Make sure you restarted the backend server after running the `UPDATE users SET is_admin` command.
 
 ### Port 3000 already in use
 
