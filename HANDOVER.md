@@ -2,7 +2,7 @@
 
 This document is for whoever picks up this project next. It covers the current state of the app, what changed most recently, known gaps, and where to look for things.
 
-**Read `README.md` first** for setup/run instructions — but note it is **out of date** as of this handover (see [README is stale](#readme-is-stale) below).
+**Read `README.md` first** for setup/run instructions — it has been updated to reflect the current tab structure, Activities/Past Papers admin flow, and API endpoints described below.
 
 ---
 
@@ -46,34 +46,19 @@ The subject screen was restructured from a single "Start Quiz" + "View Study Gui
 
 ## Known gaps / things to look at next
 
-### README is stale
-`README.md` still documents the **old** structure — it references `PDF_GUIDES`/`TOPICS_BY_SUBJECT` hardcoded maps in `SubjectDetailsScreen.js` (both removed), the single `QuizScreen`/`AdminQuestionsScreen` (both deleted), and the `POST /api/submitQuiz` endpoint (replaced by `submitActivityQuiz`/`submitPaperQuiz`). It needs a rewrite covering: the 4-tab subject layout, Activities admin flow, Past Papers admin flow (PDF upload), and the new `/api/activities`, `/api/papers`, `/api/progress` endpoints. I did not update it as part of this session — flagging it here so it doesn't get missed.
-
 ### Progress calculation doesn't count PDF-only past papers
 A past paper that only has an uploaded PDF (no practice questions attached) currently doesn't count toward a subject's completion total or completed count — only papers *with* practice questions do, since there's no "viewed this paper's PDF" tracking (unlike the study guide, which does have `guide_views`). If that matters for how progress should read, it would need a similar per-paper view-tracking table.
 
 ### APK build phase not started
 Per earlier discussion, packaging this as a distributable APK (via EAS Build) is a separate, not-yet-started phase. `eas.json` already has `development`/`preview`/`production` profiles configured — see the conversation history or ask the team for the plan that was discussed (build a dev-client APK once, then iterate via `expo start --dev-client`; only rebuild when native dependencies change).
 
-### Not yet merged to `main`
-`main` currently only contains the initial scaffold commit — all real development has happened on `frontend-auth` (and its predecessor branches). This work has **not been merged into `main` yet**. See the PR instructions below.
-
 ### Test/debug accounts
 Backend testing during this work used throwaway accounts (`debugadmin@test.com`, `debugstudent@test.com`) and dummy activities/results — all were cleaned up after each verification pass, so the committed database migration is the only lasting backend-side change (no test data was committed; `backend/database/app.db` itself is gitignored anyway).
 
 ---
 
-## Opening a PR into `main`
+## Merge status
 
-`main` is currently just the initial scaffold, so this PR will be large (it's effectively "bring main up to date with everything built so far"). Steps:
+`frontend-auth` has been merged into `main` via PR #14 (`main` was previously just the initial scaffold commit). `main` is now the up-to-date branch — start new work from `main` going forward rather than `frontend-auth`.
 
-1. Confirm the branch is pushed (it already is, as of this handover — `frontend-auth` is up to date with `origin/frontend-auth`).
-2. Go to `https://github.com/Luckyphiri95/OfflineEducationApp/compare/main...frontend-auth` — GitHub will show the diff and a "Create pull request" button.
-3. Title suggestion: `Bring main up to date: full app implementation through subject restructure`.
-4. In the description, summarize the major milestones (subjects/quiz/admin panel → study guides → past papers → this tab restructure) — or link to this HANDOVER.md.
-5. Since `main` is essentially empty, there's nothing to conflict with — the merge should be clean.
-
-If you'd rather use the `gh` CLI instead of the web UI, install it (`brew install gh` on Mac), run `gh auth login` once, then:
-```bash
-gh pr create --base main --head frontend-auth --title "Bring main up to date: full app implementation through subject restructure" --body-file HANDOVER.md
-```
+One thing to note from that merge: `main` had picked up a `backend/seed.js` (a CAPS Grade 12 subject/module seeding script) independently before this merge — it survived the merge intact and is unrelated to the work described above, so it's worth a look if you're wondering where subject/module seed data might come from.
