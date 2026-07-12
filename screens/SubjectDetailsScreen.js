@@ -1,44 +1,26 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, Platform, Linking, Alert,
+  StatusBar, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../theme/colors';
-import Button from '../components/Button';
+import BASE_URL from '../config';
 import { fetchProgressMap, getSubjectProgress } from '../utils/progress';
 
-const TOPICS_BY_SUBJECT = {
-  1: ['Algebra and equations', 'Geometry and shapes', 'Statistics and data', 'Number systems'],
-  2: ['Grammar and punctuation', 'Reading comprehension', 'Essay writing', 'Vocabulary building'],
-  3: ['Scientific method', 'Biology basics', 'Chemistry fundamentals', 'Physics concepts'],
-  4: ['Introduction to programming', 'Data structures', 'Algorithms', 'Databases and SQL'],
-};
-
-const DEFAULT_TOPICS = [
-  'Core concepts and theory',
-  'Practical exercises',
-  'Problem solving techniques',
-  'Assessment preparation',
+const TABS = [
+  { key: 'intro', label: 'Introduction' },
+  { key: 'activities', label: 'Activities' },
+  { key: 'guide', label: 'Study Guide' },
+  { key: 'papers', label: 'Past Papers' },
 ];
-
-// PDF study guide URLs per subject.
-// Replace the null values with real URLs (Google Drive, Dropbox, or your server)
-// when the study guides are ready. New subjects added via the backend will
-// automatically show a "Coming Soon" button until a URL is added here.
-const PDF_GUIDES = {
-  1: null, // Mathematics — e.g. 'https://drive.google.com/file/d/XXXXX/view'
-  2: null, // English
-  3: null, // Science
-  4: 'https://learning.richfield.ac.za/mod/resource/view.php?id=558437', // Computer Studies
-};
 
 function StatusBadge({ status }) {
   const map = {
     Complete:      { bg: colors.badgeSuccess, text: colors.badgeSuccessText },
     'In Progress': { bg: colors.badgeInfo,    text: colors.badgeInfoText },
-    Started:       { bg: colors.badgeWarning, text: colors.badgeWarningText },
-    'Not Started': { bg: colors.border,       text: colors.textSecondary },
+    'Not Started': { bg: colors.badgeWarning, text: colors.badgeWarningText },
+    'No Content':  { bg: colors.border,       text: colors.textSecondary },
   };
   const style = map[status] || map['Not Started'];
   return (
@@ -55,17 +37,66 @@ const badge = StyleSheet.create({
 
 export default function SubjectDetailsScreen({ route, navigation }) {
   const { subject, user } = route.params;
+  const [activeTab, setActiveTab] = useState('intro');
   const [progressMap, setProgressMap] = useState({});
+  const [activities, setActivities] = useState([]);
+  const [papers, setPapers] = useState([]);
+  const [questionCounts, setQuestionCounts] = useState({ activities: {}, papers: {} });
+  const [latestScores, setLatestScores] = useState({ activities: {}, papers: {} });
+  const [loading, setLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchProgressMap(user?.id).then(setProgressMap);
-    }, [])
-  );
+  const loadData = useCallback(async () => {
+    try {
+      const [progress, activityData, paperData, quizData, resultsData] = await Promise.all([
+        fetchProgressMap(user?.id),
+        fetch(`${BASE_URL}/api/activities`).then((r) => r.json()),
+        fetch(`${BASE_URL}/api/papers`).then((r) => r.json()),
+        fetch(`${BASE_URL}/api/quiz`).then((r) => r.json()),
+        fetch(`${BASE_URL}/api/results`).then((r) => r.json()),
+      ]);
+
+      setProgressMap(progress);
+      setActivities(Array.isArray(activityData) ? activityData.filter((a) => a.subject_id === subject.id) : []);
+      setPapers(Array.isArray(paperData) ? paperData.filter((p) => p.subject_id === subject.id) : []);
+
+      const counts = { activities: {}, papers: {} };
+      if (Array.isArray(quizData)) {
+        quizData.forEach((q) => {
+          if (q.activity_id) counts.activities[q.activity_id] = (counts.activities[q.activity_id] || 0) + 1;
+          if (q.paper_id) counts.papers[q.paper_id] = (counts.papers[q.paper_id] || 0) + 1;
+        });
+      }
+      setQuestionCounts(counts);
+
+      const scores = { activities: {}, papers: {} };
+      if (Array.isArray(resultsData)) {
+        const userResults = resultsData.filter((r) => r.user_id === user?.id);
+        userResults.forEach((r) => {
+          const pct = r.total_questions > 0 ? Math.round((r.score / r.total_questions) * 100) : 0;
+          if (r.type === 'activity' && r.activity_id) {
+            if (!scores.activities[r.activity_id] || r.id > scores.activities[r.activity_id].id) {
+              scores.activities[r.activity_id] = { id: r.id, pct };
+            }
+          }
+          if (r.type === 'paper' && r.paper_id) {
+            if (!scores.papers[r.paper_id] || r.id > scores.papers[r.paper_id].id) {
+              scores.papers[r.paper_id] = { id: r.id, pct };
+            }
+          }
+        });
+      }
+      setLatestScores(scores);
+    } catch {
+      // fail silently
+    } finally {
+      setLoading(false);
+    }
+  }, [subject.id, user?.id]);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const { pct, status } = getSubjectProgress(progressMap, subject.id);
-  const topics = TOPICS_BY_SUBJECT[subject.id] || DEFAULT_TOPICS;
-  const pdfUrl = PDF_GUIDES[subject.id] ?? null;
+  const pdfUrl = subject.guide_filename ? `${BASE_URL}/uploads/${subject.guide_filename}` : null;
 
   const handleOpenGuide = async () => {
     if (!pdfUrl) {
@@ -77,16 +108,139 @@ export default function SubjectDetailsScreen({ route, navigation }) {
       return;
     }
     try {
-      const supported = await Linking.canOpenURL(pdfUrl);
-      if (supported) {
-        await Linking.openURL(pdfUrl);
-      } else {
-        Alert.alert('Error', 'Unable to open the study guide on this device.');
-      }
+      await fetch(`${BASE_URL}/api/subjects/${subject.id}/guide/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user?.id }),
+      });
     } catch {
-      Alert.alert('Error', 'Something went wrong while opening the study guide.');
+      // non-critical — still let the student view the guide even if this fails
     }
+    navigation.navigate('StudyGuideViewer', { pdfUrl, subjectName: subject.name });
   };
+
+  const openPaperPdf = (paper) => {
+    if (!paper.filename) return;
+    navigation.navigate('StudyGuideViewer', {
+      pdfUrl: `${BASE_URL}/uploads/${paper.filename}`,
+      subjectName: paper.title,
+    });
+  };
+
+  const renderIntroTab = () => (
+    <View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>About</Text>
+        <Text style={styles.aboutText}>
+          {subject.description ||
+            `Learn the key concepts and skills for ${subject.name}. This subject covers essential material to build a strong foundation.`}
+        </Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>What You Will Learn</Text>
+        {[
+          'Core concepts with guided examples',
+          'Practice questions with instant feedback',
+          'Progress tracking and score history',
+        ].map((item, i) => (
+          <View key={i} style={styles.topicRow}>
+            <Text style={styles.checkIcon}>✓</Text>
+            <Text style={styles.topicText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderActivitiesTab = () => (
+    <View style={styles.section}>
+      {activities.length === 0 ? (
+        <Text style={styles.emptyText}>No activities available yet for this subject.</Text>
+      ) : (
+        activities.map((activity) => {
+          const count = questionCounts.activities[activity.id] || 0;
+          const lastScore = latestScores.activities[activity.id]?.pct;
+          return (
+            <View key={activity.id} style={styles.card}>
+              <Text style={styles.cardTitle}>{activity.title}</Text>
+              <Text style={styles.cardSub}>
+                {count} question{count === 1 ? '' : 's'}
+                {lastScore !== undefined ? ` · Last score ${lastScore}%` : ''}
+              </Text>
+              <TouchableOpacity
+                style={[styles.actionBtn, count === 0 && styles.actionBtnDisabled]}
+                disabled={count === 0}
+                onPress={() => navigation.navigate('ActivityQuiz', { activity, subject, user })}
+              >
+                <Text style={[styles.actionBtnText, count === 0 && styles.actionBtnTextDisabled]}>
+                  {count === 0 ? 'No questions yet' : lastScore !== undefined ? 'Retake' : 'Start'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+
+  const renderGuideTab = () => (
+    <View style={styles.section}>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Study Guide</Text>
+        <Text style={styles.cardSub}>
+          {pdfUrl ? 'A downloadable study guide is available for this subject.' : 'Not uploaded yet — check back later.'}
+        </Text>
+        <TouchableOpacity
+          style={[styles.actionBtn, !pdfUrl && styles.actionBtnDisabled]}
+          disabled={!pdfUrl}
+          onPress={handleOpenGuide}
+        >
+          <Text style={[styles.actionBtnText, !pdfUrl && styles.actionBtnTextDisabled]}>
+            {pdfUrl ? '📄 View Study Guide' : 'Coming soon'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderPapersTab = () => (
+    <View style={styles.section}>
+      {papers.length === 0 ? (
+        <Text style={styles.emptyText}>No past papers available yet for this subject.</Text>
+      ) : (
+        papers.map((paper) => {
+          const count = questionCounts.papers[paper.id] || 0;
+          return (
+            <View key={paper.id} style={styles.card}>
+              <Text style={styles.cardTitle}>{paper.title}</Text>
+              {paper.year ? <Text style={styles.cardSub}>{paper.year}</Text> : null}
+              <View style={styles.cardActions}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, !paper.filename && styles.actionBtnDisabled]}
+                  disabled={!paper.filename}
+                  onPress={() => openPaperPdf(paper)}
+                >
+                  <Text style={[styles.actionBtnText, !paper.filename && styles.actionBtnTextDisabled]}>
+                    {paper.filename ? '📄 View PDF' : 'PDF coming soon'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnSecondary, count === 0 && styles.actionBtnDisabled]}
+                  disabled={count === 0}
+                  onPress={() => navigation.navigate('PaperQuiz', { paper, subject, user })}
+                >
+                  <Text style={[styles.actionBtnTextSecondary, count === 0 && styles.actionBtnTextDisabled]}>
+                    {count > 0 ? `Practice (${count})` : 'No practice questions'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
 
   return (
     <View style={styles.page}>
@@ -111,70 +265,37 @@ export default function SubjectDetailsScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 160 }}
-      >
-        {/* About section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.aboutText}>
-            {subject.description ||
-              `Learn the key concepts and skills for ${subject.name}. This subject covers essential material to build a strong foundation.`}
-          </Text>
-        </View>
-
-        {/* Topics covered */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Topics Covered</Text>
-          {topics.map((topic, i) => (
-            <View key={i} style={styles.topicRow}>
-              <View style={styles.topicDot} />
-              <Text style={styles.topicText}>{topic}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* What you will learn */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What You Will Learn</Text>
-          {[
-            'Core concepts with guided examples',
-            'Practice questions with instant feedback',
-            'Progress tracking and score history',
-          ].map((item, i) => (
-            <View key={i} style={styles.topicRow}>
-              <Text style={styles.checkIcon}>✓</Text>
-              <Text style={styles.topicText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Fixed CTA bar — Start Quiz + Study Guide */}
-      <View style={styles.ctaBar}>
-        <Button
-          title="Start Quiz"
-          onPress={() => navigation.navigate('Quiz', { subject, user })}
-        />
-
-        <TouchableOpacity
-          style={[styles.guideBtn, !pdfUrl && styles.guideBtnDisabled]}
-          onPress={handleOpenGuide}
-          activeOpacity={0.75}
-        >
-          <Text style={styles.guideBtnIcon}>📄</Text>
-          <View>
-            <Text style={[styles.guideBtnText, !pdfUrl && styles.guideBtnTextDisabled]}>
-              View Study Guide
+      {/* Tab bar */}
+      <View style={styles.tabBar}>
+        {TABS.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]} numberOfLines={1}>
+              {tab.label}
             </Text>
-            {!pdfUrl && (
-              <Text style={styles.guideBtnSub}>Coming soon</Text>
-            )}
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
       </View>
+
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          {activeTab === 'intro' && renderIntroTab()}
+          {activeTab === 'activities' && renderActivitiesTab()}
+          {activeTab === 'guide' && renderGuideTab()}
+          {activeTab === 'papers' && renderPapersTab()}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -204,60 +325,49 @@ const styles = StyleSheet.create({
   progressPct: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
   progressTrack: { height: 6, backgroundColor: colors.border, borderRadius: 3 },
   progressFill: { height: 6, backgroundColor: colors.primary, borderRadius: 3 },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    paddingHorizontal: 8,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: { borderBottomColor: colors.primary },
+  tabText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  tabTextActive: { color: colors.primary },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
   section: { padding: 20, paddingBottom: 4 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary, marginBottom: 12 },
   aboutText: { fontSize: 15, color: colors.textSecondary, lineHeight: 24 },
   topicRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
-  topicDot: {
-    width: 7, height: 7, borderRadius: 4,
-    backgroundColor: colors.primary, marginTop: 7, marginRight: 12,
-  },
   checkIcon: { color: colors.success, fontSize: 15, fontWeight: '700', marginRight: 10, marginTop: 2 },
   topicText: { flex: 1, fontSize: 15, color: colors.textSecondary, lineHeight: 22 },
-
-  // Fixed bottom CTA bar
-  ctaBar: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 16,
-    gap: 10,
+  emptyText: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: 20 },
+  card: {
+    backgroundColor: colors.surface, borderRadius: 16,
+    padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
   },
-
-  // Study guide button
-  guideBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 12,
+  cardTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  cardSub: { color: colors.textSecondary, fontSize: 13, marginTop: 2, marginBottom: 10 },
+  cardActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  actionBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: colors.primary, alignItems: 'center',
   },
-  guideBtnDisabled: {
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+  actionBtnSecondary: {
+    backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.primary,
   },
-  guideBtnIcon: {
-    fontSize: 20,
-  },
-  guideBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  guideBtnTextDisabled: {
-    color: colors.textSecondary,
-  },
-  guideBtnSub: {
-    fontSize: 11,
-    color: colors.placeholder,
-    marginTop: 1,
-  },
+  actionBtnDisabled: { backgroundColor: colors.disabled, borderColor: colors.border },
+  actionBtnText: { color: colors.onPrimary, fontSize: 13, fontWeight: '700' },
+  actionBtnTextSecondary: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+  actionBtnTextDisabled: { color: colors.textSecondary },
 });
