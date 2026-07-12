@@ -5,6 +5,7 @@ import colors from '../theme/colors';
 import BottomNav from '../components/BottomNav';
 import Loader from '../components/Loader';
 import BASE_URL from '../config';
+import { fetchProgressMap } from '../utils/progress';
 
 function ProgressBar({ pct }) {
   const barColor = pct >= 80 ? colors.badgeSuccessText : pct >= 50 ? colors.primary : colors.badgeWarningText;
@@ -30,17 +31,26 @@ export default function ProgressScreen({ navigation, route }) {
   const { user } = route.params || {};
   const [subjects, setSubjects] = useState([]);
   const [results, setResults] = useState([]);
+  const [progressMap, setProgressMap] = useState({});
+  const [activities, setActivities] = useState([]);
+  const [papers, setPapers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = async () => {
     try {
-      const [subjectRes, resultsRes] = await Promise.all([
+      const [subjectRes, resultsRes, progress, activityRes, paperRes] = await Promise.all([
         fetch(`${BASE_URL}/api/subjects`).then((r) => r.json()),
         fetch(`${BASE_URL}/api/results`).then((r) => r.json()),
+        fetchProgressMap(user?.id),
+        fetch(`${BASE_URL}/api/activities`).then((r) => r.json()),
+        fetch(`${BASE_URL}/api/papers`).then((r) => r.json()),
       ]);
 
-      setSubjects(subjectRes);
+      setSubjects(Array.isArray(subjectRes) ? subjectRes : []);
+      setProgressMap(progress);
+      setActivities(Array.isArray(activityRes) ? activityRes : []);
+      setPapers(Array.isArray(paperRes) ? paperRes : []);
 
       // Filter to this user's results only
       const userResults = user?.id
@@ -65,36 +75,41 @@ export default function ProgressScreen({ navigation, route }) {
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
-  // Build a subject name lookup map
+  // Build lookup maps
   const subjectNameMap = {};
   subjects.forEach((s) => { subjectNameMap[s.id] = s.name; });
+  const activityTitleMap = {};
+  activities.forEach((a) => { activityTitleMap[a.id] = a.title; });
+  const paperTitleMap = {};
+  papers.forEach((p) => { paperTitleMap[p.id] = p.title; });
 
-  // Latest result per subject for the performance bars
-  const latestBySubject = {};
-  results.forEach((r) => {
-    if (!latestBySubject[r.subject_id]) latestBySubject[r.subject_id] = r;
-  });
-
-  // Stats
+  // Stats — average score across all attempts (score-based, separate from completion %)
   const quizCount = results.length;
   const avgScore = quizCount > 0
     ? Math.round(results.reduce((sum, r) => sum + Math.round((r.score / r.total_questions) * 100), 0) / quizCount)
     : null;
 
-  // Subject performance rows — only subjects that have at least one result
-  const performanceRows = Object.values(latestBySubject).map((r) => ({
-    subjectId: r.subject_id,
-    name: subjectNameMap[r.subject_id] || `Subject ${r.subject_id}`,
-    pct: r.total_questions > 0 ? Math.round((r.score / r.total_questions) * 100) : 0,
-  }));
+  // Subject Performance — completion % (activities + papers + guide done vs uploaded), only subjects with content
+  const performanceRows = subjects
+    .map((s) => ({ subjectId: s.id, name: s.name, ...( progressMap[s.id] || { pct: 0, total: 0 }) }))
+    .filter((row) => row.total > 0);
 
-  // Recent quizzes — all results, newest first, with subject name and score %
-  const recentQuizzes = results.slice(0, 10).map((r) => ({
-    id: r.id,
-    subject: subjectNameMap[r.subject_id] || `Subject ${r.subject_id}`,
-    pct: r.total_questions > 0 ? Math.round((r.score / r.total_questions) * 100) : 0,
-    date: formatDate(r.completed_at),
-  }));
+  // Recent quizzes — all results, newest first, labeled by Activity/Paper title
+  const recentQuizzes = results.slice(0, 10).map((r) => {
+    const subjectName = subjectNameMap[r.subject_id] || `Subject ${r.subject_id}`;
+    let label = subjectName;
+    if (r.type === 'activity' && r.activity_id) {
+      label = `${subjectName} — ${activityTitleMap[r.activity_id] || 'Activity'}`;
+    } else if (r.type === 'paper' && r.paper_id) {
+      label = `${subjectName} — ${paperTitleMap[r.paper_id] || 'Past Paper'} (Practice)`;
+    }
+    return {
+      id: r.id,
+      label,
+      pct: r.total_questions > 0 ? Math.round((r.score / r.total_questions) * 100) : 0,
+      date: formatDate(r.completed_at),
+    };
+  });
 
   return (
     <View style={styles.page}>
@@ -126,11 +141,11 @@ export default function ProgressScreen({ navigation, route }) {
             </View>
           </View>
 
-          {/* Subject Performance */}
-          <Text style={styles.sectionTitle}>Subject Performance</Text>
+          {/* Subject Performance (content completion %) */}
+          <Text style={styles.sectionTitle}>Subject Completion</Text>
           {performanceRows.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No quiz results yet. Start a quiz to track your progress.</Text>
+              <Text style={styles.emptyText}>No content uploaded yet. Check back once your subjects have activities, papers, or a study guide.</Text>
             </View>
           ) : (
             <View style={styles.card}>
@@ -158,8 +173,8 @@ export default function ProgressScreen({ navigation, route }) {
               const passed = q.pct >= 50;
               return (
                 <View key={q.id} style={styles.quizCard}>
-                  <View>
-                    <Text style={styles.quizSubject}>{q.subject}</Text>
+                  <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={styles.quizSubject} numberOfLines={1}>{q.label}</Text>
                     <Text style={styles.quizDate}>{q.date}</Text>
                   </View>
                   <View style={[styles.scoreBadge, { backgroundColor: passed ? colors.badgeSuccess : colors.badgeError }]}>

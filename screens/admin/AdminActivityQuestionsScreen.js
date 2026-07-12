@@ -20,43 +20,27 @@ const ANSWER_OPTIONS = [
   { key: 'option_d', label: 'D' },
 ];
 
-export default function AdminQuestionsScreen({ navigation }) {
-  const [subjects, setSubjects] = useState([]);
+export default function AdminActivityQuestionsScreen({ navigation, route }) {
+  const { activity } = route.params || {};
   const [questions, setQuestions] = useState([]);
-  const [selectedSubject, setSelectedSubject] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const loadSubjects = async () => {
-    try {
-      const data = await fetch(`${BASE_URL}/api/subjects`).then((r) => r.json());
-      const list = Array.isArray(data) ? data : [];
-      setSubjects(list);
-      if (list.length > 0 && !selectedSubject) setSelectedSubject(list[0]);
-    } catch { }
-  };
-
-  const loadQuestions = useCallback(async (subject) => {
-    if (!subject) return;
+  const loadQuestions = useCallback(async () => {
+    if (!activity) return;
     try {
       const data = await fetch(`${BASE_URL}/api/quiz`).then((r) => r.json());
-      setQuestions(Array.isArray(data) ? data.filter((q) => q.subject_id === subject.id) : []);
+      setQuestions(Array.isArray(data) ? data.filter((q) => q.activity_id === activity.id) : []);
     } catch { }
-  }, []);
+  }, [activity]);
 
-  useFocusEffect(
-    useCallback(() => { loadSubjects(); }, [])
-  );
-
-  useFocusEffect(
-    useCallback(() => { loadQuestions(selectedSubject); }, [selectedSubject])
-  );
+  useFocusEffect(useCallback(() => { loadQuestions(); }, [loadQuestions]));
 
   const openAdd = () => {
-    setForm({ ...EMPTY_FORM, subject_id: selectedSubject?.id });
+    setForm(EMPTY_FORM);
     setEditingId(null);
     setError('');
     setShowForm(true);
@@ -92,7 +76,8 @@ export default function AdminQuestionsScreen({ navigation }) {
     setSaving(true);
     try {
       const body = {
-        subject_id: selectedSubject.id,
+        subject_id: activity.subject_id,
+        activity_id: activity.id,
         question: question.trim(),
         option_a: option_a.trim(),
         option_b: option_b.trim(),
@@ -109,7 +94,7 @@ export default function AdminQuestionsScreen({ navigation }) {
       });
       if (!res.ok) throw new Error();
       cancelForm();
-      loadQuestions(selectedSubject);
+      loadQuestions();
     } catch {
       setError('Failed to save question. Please try again.');
     } finally {
@@ -127,7 +112,7 @@ export default function AdminQuestionsScreen({ navigation }) {
           text: 'Delete', style: 'destructive', onPress: async () => {
             try {
               await fetch(`${BASE_URL}/api/quiz/${q.id}`, { method: 'DELETE' });
-              loadQuestions(selectedSubject);
+              loadQuestions();
             } catch { Alert.alert('Error', 'Could not delete question.'); }
           },
         },
@@ -164,23 +149,9 @@ export default function AdminQuestionsScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quiz Questions</Text>
+          <Text style={styles.headerTitle}>Activity Questions</Text>
+          <Text style={styles.headerSub}>{activity?.title}</Text>
         </View>
-
-        {/* Subject chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll} contentContainerStyle={styles.chipContent}>
-          {subjects.map((s) => (
-            <TouchableOpacity
-              key={s.id}
-              style={[styles.chip, selectedSubject?.id === s.id && styles.chipActive]}
-              onPress={() => { setSelectedSubject(s); setShowForm(false); }}
-            >
-              <Text style={[styles.chipText, selectedSubject?.id === s.id && styles.chipTextActive]}>
-                {s.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {showForm ? (
           <ScrollView style={styles.formScroll} keyboardShouldPersistTaps="handled">
@@ -223,7 +194,7 @@ export default function AdminQuestionsScreen({ navigation }) {
         ) : (
           <>
             <View style={styles.addWrap}>
-              <Button title="+ Add Question" onPress={openAdd} disabled={!selectedSubject} />
+              <Button title="+ Add Question" onPress={openAdd} />
             </View>
             <FlatList
               data={questions}
@@ -231,9 +202,7 @@ export default function AdminQuestionsScreen({ navigation }) {
               renderItem={renderItem}
               contentContainerStyle={styles.list}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>
-                  {selectedSubject ? 'No questions for this subject yet.' : 'Select a subject above.'}
-                </Text>
+                <Text style={styles.emptyText}>No questions for this activity yet.</Text>
               }
             />
           </>
@@ -254,16 +223,7 @@ const styles = StyleSheet.create({
   backBtn: { marginBottom: 12 },
   backText: { color: 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: '500' },
   headerTitle: { color: '#fff', fontSize: 26, fontWeight: '700' },
-  chipScroll: { maxHeight: 54, flexGrow: 0 },
-  chipContent: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  chip: {
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: colors.surface,
-    borderWidth: 1.5, borderColor: colors.border,
-  },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  chipTextActive: { color: '#fff' },
+  headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4 },
   addWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   list: { padding: 16, paddingTop: 4 },
   row: {

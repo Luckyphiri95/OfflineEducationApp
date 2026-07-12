@@ -5,9 +5,19 @@ import ScoreDashboard from '../components/ScoreDashboard';
 import colors from '../theme/colors';
 
 export default function ResultsScreen({ route, navigation }) {
-  const { score = 0, total = 0, subject } = route.params || {};
+  const { score = 0, total = 0, subject, paper, activity, user } = route.params || {};
   const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
   const passed = percentage >= 50;
+
+  const handleTryAgain = () => {
+    if (paper) {
+      navigation.replace('PaperQuiz', { paper, subject, user });
+    } else if (activity) {
+      navigation.replace('ActivityQuiz', { activity, subject, user });
+    } else {
+      navigation.navigate('SubjectDetails', { subject, user });
+    }
+  };
 
   return (
     <View style={styles.page}>
@@ -15,8 +25,8 @@ export default function ResultsScreen({ route, navigation }) {
 
       {/* Blue header */}
       <View style={styles.blueHeader}>
-        <Text style={styles.headerTitle}>{subject?.name || 'Quiz'}</Text>
-        <Text style={styles.headerSub}>Quiz Results</Text>
+        <Text style={styles.headerTitle}>{paper?.title || activity?.title || subject?.name || 'Quiz'}</Text>
+        <Text style={styles.headerSub}>{paper ? 'Practice Results' : activity ? 'Activity Results' : 'Quiz Results'}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -32,18 +42,18 @@ export default function ResultsScreen({ route, navigation }) {
         </Text>
 
         {/* Action buttons */}
-        <Button title="Try Again" onPress={() => navigation.replace('Quiz', { subject })} />
+        <Button title="Try Again" onPress={handleTryAgain} />
         <View style={styles.spacer} />
         <Button
           title="Back to Subjects"
           variant="secondary"
-          onPress={() => navigation.navigate('Subjects')}
+          onPress={() => navigation.navigate('Subjects', { user })}
         />
         <View style={styles.spacer} />
         <Button
           title="Go to Dashboard"
           variant="secondary"
-          onPress={() => navigation.navigate('Dashboard')}
+          onPress={() => navigation.navigate('Dashboard', { user })}
         />
       </ScrollView>
     </View>

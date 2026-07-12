@@ -47,3 +47,7 @@ AGENTS.md
 
 # SQLite database — auto-created on server start, contains local data
 backend/database/app.db
+
+# Uploaded study guide PDFs
+backend/uploads/*
+!backend/uploads/.gitkeep
