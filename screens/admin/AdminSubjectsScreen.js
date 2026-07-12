@@ -4,6 +4,7 @@ import {
   Alert, StatusBar, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as DocumentPicker from 'expo-document-picker';
 import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
@@ -15,8 +16,10 @@ export default function AdminSubjectsScreen({ navigation }) {
   const [subjects, setSubjects] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
+  const [editingGuide, setEditingGuide] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingGuide, setUploadingGuide] = useState(false);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -31,6 +34,7 @@ export default function AdminSubjectsScreen({ navigation }) {
   const openAdd = () => {
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setEditingGuide(null);
     setError('');
     setShowForm(true);
   };
@@ -38,6 +42,10 @@ export default function AdminSubjectsScreen({ navigation }) {
   const openEdit = (subject) => {
     setForm({ name: subject.name, description: subject.description || '' });
     setEditingId(subject.id);
+    setEditingGuide({
+      guide_filename: subject.guide_filename || null,
+      guide_original_name: subject.guide_original_name || null,
+    });
     setError('');
     setShowForm(true);
   };
@@ -46,7 +54,66 @@ export default function AdminSubjectsScreen({ navigation }) {
     setShowForm(false);
     setForm(EMPTY_FORM);
     setEditingId(null);
+    setEditingGuide(null);
     setError('');
+  };
+
+  const pickAndUploadGuide = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    if (result.canceled || !result.assets?.length) return;
+
+    const file = result.assets[0];
+    setUploadingGuide(true);
+    try {
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        // On web, DocumentPicker returns a real browser File object at file.file
+        formData.append('pdf', file.file, file.name || 'study-guide.pdf');
+      } else {
+        formData.append('pdf', {
+          uri: file.uri,
+          name: file.name || 'study-guide.pdf',
+          type: 'application/pdf',
+        });
+      }
+
+      const res = await fetch(`${BASE_URL}/api/subjects/${editingId}/guide`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setEditingGuide({
+        guide_filename: data.guide_filename,
+        guide_original_name: data.guide_original_name,
+      });
+      load();
+    } catch {
+      Alert.alert('Error', 'Failed to upload study guide. Please try again.');
+    } finally {
+      setUploadingGuide(false);
+    }
+  };
+
+  const removeGuide = () => {
+    Alert.alert(
+      'Remove Study Guide',
+      'This will remove the uploaded PDF for this subject.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/subjects/${editingId}/guide`, { method: 'DELETE' });
+              setEditingGuide({ guide_filename: null, guide_original_name: null });
+              load();
+            } catch {
+              Alert.alert('Error', 'Could not remove study guide.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const saveSubject = async () => {
@@ -95,6 +162,7 @@ export default function AdminSubjectsScreen({ navigation }) {
       <View style={styles.rowText}>
         <Text style={styles.rowName}>{item.name}</Text>
         {item.description ? <Text style={styles.rowDesc} numberOfLines={1}>{item.description}</Text> : null}
+        {item.guide_filename ? <Text style={styles.rowGuide}>📄 Guide</Text> : null}
       </View>
       <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
         <Text style={styles.editBtnText}>Edit</Text>
@@ -132,6 +200,34 @@ export default function AdminSubjectsScreen({ navigation }) {
               onChangeText={(v) => setForm((f) => ({ ...f, description: v }))}
               placeholder="Short description (optional)"
             />
+            {editingId ? (
+              <View style={styles.guideSection}>
+                <Text style={styles.guideLabel}>Study Guide (PDF)</Text>
+                {editingGuide?.guide_filename ? (
+                  <View style={styles.guideCurrent}>
+                    <Text style={styles.guideFileText} numberOfLines={1}>
+                      📄 {editingGuide.guide_original_name || editingGuide.guide_filename}
+                    </Text>
+                    <TouchableOpacity onPress={removeGuide}>
+                      <Text style={styles.guideRemoveText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text style={styles.guideEmptyText}>No study guide uploaded yet.</Text>
+                )}
+                <View style={{ marginTop: 10 }}>
+                  <Button
+                    title={uploadingGuide ? 'Uploading...' : editingGuide?.guide_filename ? 'Replace PDF' : 'Upload PDF'}
+                    onPress={pickAndUploadGuide}
+                    variant="secondary"
+                    disabled={uploadingGuide}
+                  />
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.guideEmptyText}>Save the subject first to attach a study guide PDF.</Text>
+            )}
+
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <View style={styles.formRow}>
               <Button title="Cancel" onPress={cancelForm} variant="secondary" />
@@ -189,6 +285,19 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, marginRight: 8 },
   rowName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   rowDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  rowGuide: { fontSize: 11, color: colors.primary, fontWeight: '700', marginTop: 4 },
+  guideSection: {
+    borderTopWidth: 1, borderTopColor: colors.border,
+    marginTop: 10, paddingTop: 14, marginBottom: 4,
+  },
+  guideLabel: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
+  guideCurrent: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.background, borderRadius: 10, padding: 10,
+  },
+  guideFileText: { flex: 1, fontSize: 13, color: colors.textPrimary, marginRight: 8 },
+  guideRemoveText: { fontSize: 12, fontWeight: '700', color: colors.error },
+  guideEmptyText: { fontSize: 12, color: colors.textSecondary, marginBottom: 4 },
   editBtn: {
     backgroundColor: colors.badgeInfo, borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 6, marginRight: 6,
