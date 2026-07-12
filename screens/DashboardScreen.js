@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, StatusBar, Platform, RefreshControl,
+  TouchableOpacity, StatusBar, Platform, RefreshControl, Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../theme/colors';
@@ -22,6 +22,7 @@ export default function DashboardScreen({ navigation, route }) {
   const [progressMap, setProgressMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   const loadData = async () => {
     try {
@@ -48,14 +49,20 @@ export default function DashboardScreen({ navigation, route }) {
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
+  const handleLogout = () => {
+    setMenuVisible(false);
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
   const initials = getInitials(user?.username || 'Learner');
   const totalSubjects = subjects.length;
 
-  // Derive quiz count and avg score from progress map
-  const completedSubjects = Object.values(progressMap);
-  const quizCount = completedSubjects.length;
-  const avgScore = quizCount > 0
-    ? Math.round(completedSubjects.reduce((sum, p) => sum + p.pct, 0) / quizCount)
+  // Derive completed-subject count and avg completion % from progress map
+  // (only consider subjects that actually have uploaded content)
+  const withContent = Object.values(progressMap).filter((p) => p.total > 0);
+  const completedCount = withContent.filter((p) => p.status === 'Complete').length;
+  const avgProgress = withContent.length > 0
+    ? Math.round(withContent.reduce((sum, p) => sum + p.pct, 0) / withContent.length)
     : null;
 
   return (
@@ -69,11 +76,24 @@ export default function DashboardScreen({ navigation, route }) {
             <Text style={styles.greeting}>Good day,</Text>
             <Text style={styles.username}>{user?.username || 'Learner'} 👋</Text>
           </View>
-          <View style={styles.avatar}>
+          <TouchableOpacity style={styles.avatar} onPress={() => setMenuVisible(true)}>
             <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
+
+      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
+          <View style={styles.menuCard}>
+            <Text style={styles.menuName}>{user?.username || 'Learner'}</Text>
+            <Text style={styles.menuEmail}>{user?.email || ''}</Text>
+            <View style={styles.menuDivider} />
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+              <Text style={styles.menuItemText}>Log out</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <ScrollView
         style={styles.scroll}
@@ -84,8 +104,8 @@ export default function DashboardScreen({ navigation, route }) {
         {/* Stats row */}
         <View style={styles.statsRow}>
           <StatsCard value={totalSubjects.toString()} label="Subjects" />
-          <StatsCard value={quizCount.toString()} label="Quizzes" />
-          <StatsCard value={avgScore !== null ? `${avgScore}%` : '—'} label="Avg Score" />
+          <StatsCard value={completedCount.toString()} label="Completed" />
+          <StatsCard value={avgProgress !== null ? `${avgProgress}%` : '—'} label="Avg Progress" />
         </View>
 
         {/* Continue Learning */}
@@ -152,4 +172,23 @@ const styles = StyleSheet.create({
   sectionLink: { color: colors.primary, fontSize: 13 },
   emptyCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: 'center' },
   emptyText: { color: colors.textSecondary, fontSize: 15 },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    alignItems: 'flex-end',
+    paddingTop: Platform.OS === 'android' ? 100 : 108,
+    paddingRight: 24,
+  },
+  menuCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 12,
+    minWidth: 180,
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, elevation: 6,
+  },
+  menuName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, paddingHorizontal: 16 },
+  menuEmail: { fontSize: 12, color: colors.textSecondary, paddingHorizontal: 16, marginTop: 2 },
+  menuDivider: { height: 1, backgroundColor: colors.border, marginVertical: 10 },
+  menuItem: { paddingHorizontal: 16, paddingVertical: 8 },
+  menuItemText: { fontSize: 14, fontWeight: '600', color: colors.badgeDangerText || '#d33' },
 });

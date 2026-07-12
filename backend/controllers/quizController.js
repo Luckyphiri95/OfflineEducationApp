@@ -19,20 +19,20 @@ const getQuiz = (req, res) => {
 
 
 // ======================
-// SUBMIT QUIZ (SCORE CALCULATION)
+// SUBMIT ACTIVITY QUIZ (SCORE CALCULATION)
 // ======================
-const submitQuiz = (req, res) => {
-  const { user_id, subject_id, answers } = req.body;
+const submitActivityQuiz = (req, res) => {
+  const { user_id, subject_id, activity_id, answers } = req.body;
 
-  if (!user_id || !subject_id || !answers) {
+  if (!user_id || !subject_id || !activity_id || !answers) {
     return res.status(400).json({ message: "Missing data" });
   }
 
   const query = `
-    SELECT * FROM quiz WHERE subject_id = ?
+    SELECT * FROM quiz WHERE activity_id = ?
   `;
 
-  db.all(query, [subject_id], (err, questions) => {
+  db.all(query, [activity_id], (err, questions) => {
     if (err) {
       return res.status(500).json({ message: "Database error" });
     }
@@ -41,26 +41,81 @@ const submitQuiz = (req, res) => {
 
     questions.forEach((q) => {
       const userAnswer = answers[q.id];
-      if (userAnswer === q.correct_answer) {
+      const correctText = q[q.correct_answer];
+      if (userAnswer === correctText) {
         score++;
       }
     });
 
     const insert = `
-      INSERT INTO results (user_id, subject_id, score, total_questions)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO results (user_id, subject_id, activity_id, type, score, total_questions)
+      VALUES (?, ?, ?, 'activity', ?, ?)
     `;
 
     db.run(
       insert,
-      [user_id, subject_id, score, questions.length],
+      [user_id, subject_id, activity_id, score, questions.length],
       function (err) {
         if (err) {
           return res.status(500).json({ message: "Error saving result" });
         }
 
         return res.status(200).json({
-          message: "Quiz submitted",
+          message: "Activity quiz submitted",
+          score,
+          total: questions.length,
+          resultId: this.lastID
+        });
+      }
+    );
+  });
+};
+
+
+// ======================
+// SUBMIT PAPER PRACTICE QUIZ (SCORE CALCULATION)
+// ======================
+const submitPaperQuiz = (req, res) => {
+  const { user_id, subject_id, paper_id, answers } = req.body;
+
+  if (!user_id || !subject_id || !paper_id || !answers) {
+    return res.status(400).json({ message: "Missing data" });
+  }
+
+  const query = `
+    SELECT * FROM quiz WHERE paper_id = ?
+  `;
+
+  db.all(query, [paper_id], (err, questions) => {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+
+    let score = 0;
+
+    questions.forEach((q) => {
+      const userAnswer = answers[q.id];
+      const correctText = q[q.correct_answer];
+      if (userAnswer === correctText) {
+        score++;
+      }
+    });
+
+    const insert = `
+      INSERT INTO results (user_id, subject_id, paper_id, type, score, total_questions)
+      VALUES (?, ?, ?, 'paper', ?, ?)
+    `;
+
+    db.run(
+      insert,
+      [user_id, subject_id, paper_id, score, questions.length],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ message: "Error saving result" });
+        }
+
+        return res.status(200).json({
+          message: "Paper quiz submitted",
           score,
           total: questions.length,
           resultId: this.lastID
@@ -93,18 +148,18 @@ const getResults = (req, res) => {
 // CREATE QUESTION
 // ======================
 const createQuestion = (req, res) => {
-  const { subject_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
+  const { subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
 
   if (!subject_id || !question || !option_a || !option_b || !option_c || !option_d || !correct_answer) {
     return res.status(400).json({ message: "All fields required" });
   }
 
   const query = `
-    INSERT INTO quiz (subject_id, question, option_a, option_b, option_c, option_d, correct_answer)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO quiz (subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(query, [subject_id, question, option_a, option_b, option_c, option_d, correct_answer], function (err) {
+  db.run(query, [subject_id, paper_id || null, activity_id || null, question, option_a, option_b, option_c, option_d, correct_answer], function (err) {
     if (err) {
       return res.status(500).json({ message: "Database error" });
     }
@@ -118,14 +173,14 @@ const createQuestion = (req, res) => {
 // ======================
 const updateQuestion = (req, res) => {
   const { id } = req.params;
-  const { subject_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
+  const { subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
 
   const query = `
-    UPDATE quiz SET subject_id = ?, question = ?, option_a = ?, option_b = ?,
+    UPDATE quiz SET subject_id = ?, paper_id = ?, activity_id = ?, question = ?, option_a = ?, option_b = ?,
     option_c = ?, option_d = ?, correct_answer = ? WHERE id = ?
   `;
 
-  db.run(query, [subject_id, question, option_a, option_b, option_c, option_d, correct_answer, id], function (err) {
+  db.run(query, [subject_id, paper_id || null, activity_id || null, question, option_a, option_b, option_c, option_d, correct_answer, id], function (err) {
     if (err) {
       return res.status(500).json({ message: "Database error" });
     }
@@ -157,7 +212,8 @@ const deleteQuestion = (req, res) => {
 
 module.exports = {
   getQuiz,
-  submitQuiz,
+  submitActivityQuiz,
+  submitPaperQuiz,
   getResults,
   createQuestion,
   updateQuestion,

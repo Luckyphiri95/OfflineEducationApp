@@ -3,7 +3,8 @@ const router = express.Router();
 
 const {
   getQuiz,
-  submitQuiz,
+  submitActivityQuiz,
+  submitPaperQuiz,
   getResults,
   createQuestion,
   updateQuestion,
@@ -18,7 +19,8 @@ router.get("/quiz", getQuiz);
 router.post("/quiz", createQuestion);
 router.put("/quiz/:id", updateQuestion);
 router.delete("/quiz/:id", deleteQuestion);
-router.post("/submitQuiz", submitQuiz);
+router.post("/submitActivityQuiz", submitActivityQuiz);
+router.post("/submitPaperQuiz", submitPaperQuiz);
 router.get("/results", getResults);
 
 module.exports = router;

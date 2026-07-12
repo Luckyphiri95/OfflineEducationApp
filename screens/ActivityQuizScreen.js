@@ -14,15 +14,15 @@ const QUIZ_SECONDS = 120;
 function normalizeQuestion(q) {
   return {
     id: q.id,
-    subject_id: q.subject_id,
+    activity_id: q.activity_id,
     question: q.question,
     options: [q.option_a, q.option_b, q.option_c, q.option_d],
-    correct_answer: q.correct_answer,
+    correct_answer: q[q.correct_answer],
   };
 }
 
-export default function QuizScreen({ route, navigation }) {
-  const { subject, user } = route.params || {};
+export default function ActivityQuizScreen({ route, navigation }) {
+  const { activity, subject, user } = route.params || {};
 
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,31 +31,31 @@ export default function QuizScreen({ route, navigation }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
-  // Accumulates { questionId: selectedAnswer } for the final submitQuiz call
+  // Accumulates { questionId: selectedAnswer } for the final submitActivityQuiz call
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(QUIZ_SECONDS);
   const timerRef = useRef(null);
 
-  // ── Fetch questions from backend, filtered to this subject ──────────────
+  // ── Fetch questions from backend, filtered to this activity ─────────────
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
         const response = await fetch(`${BASE_URL}/api/quiz`);
-        if (!response.ok) throw new Error('Failed to load quiz');
+        if (!response.ok) throw new Error('Failed to load activity');
         const data = await response.json();
 
-        // Filter to this subject only, then normalize
+        // Filter to this activity only, then normalize
         const filtered = data
-          .filter((q) => q.subject_id === subject?.id)
+          .filter((q) => q.activity_id === activity?.id)
           .map(normalizeQuestion);
 
         if (filtered.length === 0) {
-          setLoadError(`No questions found for ${subject?.name || 'this subject'}.`);
+          setLoadError(`No questions found for ${activity?.title || 'this activity'}.`);
         } else {
           setQuestions(filtered);
         }
       } catch {
-        setLoadError('Could not load quiz. Is the server running?');
+        setLoadError('Could not load activity. Is the server running?');
       } finally {
         setLoading(false);
       }
@@ -90,12 +90,13 @@ export default function QuizScreen({ route, navigation }) {
   // ── Submit all collected answers to the backend ────────────────────────
   const submitToBackend = async (finalAnswers) => {
     try {
-      const response = await fetch(`${BASE_URL}/api/submitQuiz`, {
+      const response = await fetch(`${BASE_URL}/api/submitActivityQuiz`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user?.id,
-          subject_id: subject?.id,
+          subject_id: subject?.id ?? activity?.subject_id,
+          activity_id: activity?.id,
           answers: finalAnswers,
         }),
       });
@@ -113,7 +114,7 @@ export default function QuizScreen({ route, navigation }) {
 
   const handleAutoSubmit = async () => {
     const result = await submitToBackend(answers);
-    navigation.replace('Results', { score: result.score, total: result.total, subject });
+    navigation.replace('Results', { score: result.score, total: result.total, subject, activity, user });
   };
 
   const handleNext = async () => {
@@ -128,7 +129,7 @@ export default function QuizScreen({ route, navigation }) {
       if (isLast) {
         clearInterval(timerRef.current);
         const result = await submitToBackend(updatedAnswers);
-        navigation.replace('Results', { score: result.score, total: result.total, subject });
+        navigation.replace('Results', { score: result.score, total: result.total, subject, activity, user });
       } else {
         setCurrentIndex((i) => i + 1);
         setSelected(null);
@@ -177,7 +178,7 @@ export default function QuizScreen({ route, navigation }) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading questions...</Text>
+        <Text style={styles.loadingText}>Loading activity...</Text>
       </View>
     );
   }
@@ -201,7 +202,7 @@ export default function QuizScreen({ route, navigation }) {
           <TouchableOpacity onPress={handleQuit} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{subject?.name || 'Quiz'}</Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{activity?.title || 'Activity'}</Text>
           <Text style={[styles.timer, timerWarning && styles.timerWarning]}>
             {mins}:{secs}
           </Text>
@@ -241,7 +242,7 @@ export default function QuizScreen({ route, navigation }) {
 
       <View style={styles.footer}>
         <Button
-          title={isLast ? 'Submit Quiz' : 'Next Question →'}
+          title={isLast ? 'Submit' : 'Next Question →'}
           onPress={handleNext}
           disabled={!selected || submitted}
         />
