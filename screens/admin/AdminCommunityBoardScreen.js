@@ -8,6 +8,7 @@ import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
+import { confirmAction } from '../../utils/confirmAction';
 
 const EMPTY_FORM = { title: '', body: '', category: 'module', subject_id: null };
 
@@ -101,21 +102,16 @@ export default function AdminCommunityBoardScreen({ navigation, route }) {
   };
 
   const deleteArticle = (article) => {
-    Alert.alert(
-      'Delete Article',
-      `Delete "${article.title}"? This also removes its likes and comments.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await fetch(`${BASE_URL}/api/articles/${article.id}`, { method: 'DELETE' });
-              load();
-            } catch { Alert.alert('Error', 'Could not delete article.'); }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Delete Article',
+      message: `Delete "${article.title}"? This also removes its likes and comments.`,
+      onConfirm: async () => {
+        try {
+          await fetch(`${BASE_URL}/api/articles/${article.id}`, { method: 'DELETE' });
+          load();
+        } catch { Alert.alert('Error', 'Could not delete article.'); }
+      },
+    });
   };
 
   const subjectName = (id) => subjects.find((s) => s.id === id)?.name;
