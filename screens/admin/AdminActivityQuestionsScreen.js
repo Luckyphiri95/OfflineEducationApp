@@ -11,6 +11,7 @@ import BASE_URL from '../../config';
 
 const EMPTY_FORM = {
   question: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: 'option_a',
+  explanation: '', hint: '',
 };
 
 const ANSWER_OPTIONS = [
@@ -54,6 +55,8 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
       option_c: q.option_c,
       option_d: q.option_d,
       correct_answer: q.correct_answer,
+      explanation: q.explanation || '',
+      hint: q.hint || '',
     });
     setEditingId(q.id);
     setError('');
@@ -68,9 +71,13 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
   };
 
   const saveQuestion = async () => {
-    const { question, option_a, option_b, option_c, option_d, correct_answer } = form;
+    const { question, option_a, option_b, option_c, option_d, correct_answer, explanation, hint } = form;
     if (!question.trim() || !option_a.trim() || !option_b.trim() || !option_c.trim() || !option_d.trim()) {
       setError('All fields are required');
+      return;
+    }
+    if (!explanation.trim() || !hint.trim()) {
+      setError('Explanation and Hint / Clue are required');
       return;
     }
     setSaving(true);
@@ -84,6 +91,8 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
         option_c: option_c.trim(),
         option_d: option_d.trim(),
         correct_answer,
+        explanation: explanation.trim(),
+        hint: hint.trim(),
       };
       const url = editingId ? `${BASE_URL}/api/quiz/${editingId}` : `${BASE_URL}/api/quiz`;
       const method = editingId ? 'PUT' : 'POST';
@@ -182,6 +191,22 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              <Input
+                label="Explanation (shown when a student gets this wrong)"
+                value={form.explanation}
+                onChangeText={(v) => { setForm((f) => ({ ...f, explanation: v })); setError(''); }}
+                placeholder="Explain why the correct answer is right"
+                multiline
+              />
+              <Input
+                label="Hint / Clue"
+                value={form.hint}
+                onChangeText={(v) => { setForm((f) => ({ ...f, hint: v })); setError(''); }}
+                placeholder="A clue to help them find the correct answer next time"
+                multiline
+                numberOfLines={2}
+              />
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
               <View style={styles.formBtns}>

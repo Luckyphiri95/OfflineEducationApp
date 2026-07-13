@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import colors from '../theme/colors';
 import Button from '../components/Button';
+import ExplanationModal from '../components/ExplanationModal';
 import BASE_URL from '../config';
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
@@ -18,6 +19,8 @@ function normalizeQuestion(q) {
     question: q.question,
     options: [q.option_a, q.option_b, q.option_c, q.option_d],
     correct_answer: q[q.correct_answer],
+    explanation: q.explanation,
+    hint: q.hint,
   };
 }
 
@@ -34,7 +37,10 @@ export default function PaperQuizScreen({ route, navigation }) {
   // Accumulates { questionId: selectedAnswer } for the final submitPaperQuiz call
   const [answers, setAnswers] = useState({});
   const [timeLeft, setTimeLeft] = useState(QUIZ_SECONDS);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [paused, setPaused] = useState(false);
   const timerRef = useRef(null);
+  const pendingAnswersRef = useRef(null);
 
   // ── Fetch questions from backend, filtered to this paper ────────────────
   useEffect(() => {
@@ -63,11 +69,13 @@ export default function PaperQuizScreen({ route, navigation }) {
     fetchQuestions();
   }, []);
 
-  // ── Countdown timer — starts once questions are loaded ──────────────────
+  // ── Countdown timer — starts once questions are loaded, pauses while the
+  // wrong-answer explanation modal is open ────────────────────────────────
   useEffect(() => {
     if (questions.length === 0) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
+        if (paused) return t;
         if (t <= 1) {
           clearInterval(timerRef.current);
           handleAutoSubmit();
@@ -77,7 +85,7 @@ export default function PaperQuizScreen({ route, navigation }) {
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [questions]);
+  }, [questions, paused]);
 
   const mins = Math.floor(timeLeft / 60).toString().padStart(2, '0');
   const secs = (timeLeft % 60).toString().padStart(2, '0');
@@ -117,6 +125,18 @@ export default function PaperQuizScreen({ route, navigation }) {
     navigation.replace('Results', { score: result.score, total: result.total, subject, paper, user });
   };
 
+  const advance = async (updatedAnswers) => {
+    if (isLast) {
+      clearInterval(timerRef.current);
+      const result = await submitToBackend(updatedAnswers);
+      navigation.replace('Results', { score: result.score, total: result.total, subject, paper, user });
+    } else {
+      setCurrentIndex((i) => i + 1);
+      setSelected(null);
+      setSubmitted(false);
+    }
+  };
+
   const handleNext = async () => {
     if (!selected || submitted) return;
 
@@ -125,17 +145,22 @@ export default function PaperQuizScreen({ route, navigation }) {
     setAnswers(updatedAnswers);
     setSubmitted(true);
 
-    setTimeout(async () => {
-      if (isLast) {
-        clearInterval(timerRef.current);
-        const result = await submitToBackend(updatedAnswers);
-        navigation.replace('Results', { score: result.score, total: result.total, subject, paper, user });
-      } else {
-        setCurrentIndex((i) => i + 1);
-        setSelected(null);
-        setSubmitted(false);
-      }
-    }, 700);
+    const isCorrect = selected === currentQuestion.correct_answer;
+    if (!isCorrect) {
+      // Pause the timer and show the explanation — only advance once dismissed
+      pendingAnswersRef.current = updatedAnswers;
+      setPaused(true);
+      setShowExplanation(true);
+      return;
+    }
+
+    setTimeout(() => advance(updatedAnswers), 700);
+  };
+
+  const handleContinueFromExplanation = () => {
+    setShowExplanation(false);
+    setPaused(false);
+    advance(pendingAnswersRef.current);
   };
 
   const handleQuit = () => {
@@ -247,6 +272,14 @@ export default function PaperQuizScreen({ route, navigation }) {
           disabled={!selected || submitted}
         />
       </View>
+
+      <ExplanationModal
+        visible={showExplanation}
+        correctAnswer={currentQuestion.correct_answer}
+        explanation={currentQuestion.explanation}
+        hint={currentQuestion.hint}
+        onContinue={handleContinueFromExplanation}
+      />
     </View>
   );
 }
