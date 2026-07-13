@@ -1,10 +1,10 @@
 # Handover: Community Board, Quiz Explanations & Offline Support
 
-This document is for the developer picking up backend work on **MzansiGo** (formerly "OfflineEducationApp" — see `README.md`). It describes three pieces of scoped-but-not-yet-built work, in enough detail to implement directly. Nothing described here has been built yet — this is a plan, not a changelog.
+This document is for the developer picking up backend work on **MzansiGo** (formerly "OfflineEducationApp" — see `README.md`). It describes three pieces of work; **the frontend for Features 1 and 2 is already built** (see "Frontend — already built" under each) and is currently calling endpoints that don't exist on the backend yet — those calls fail gracefully (friendly error states, no crashes) until the backend catches up. Feature 3 (offline support) has no frontend or backend work started yet — it's still a plan.
 
 **Read `README.md` and `HANDOVER.md` first** for the current state of the app (architecture, existing screens/endpoints, admin flows). This document only covers the three new pieces below.
 
-**Recommended order: Feature 1 → Feature 2 → Feature 3.** Features 1 and 2 are fully self-contained and low-risk. Feature 3 (offline support) is a large architecture change that touches how *every* screen fetches data — building it last avoids having to redo Features 1/2's screens on top of a data-fetching layer that doesn't exist yet when you start them.
+**Recommended order: Feature 1 → Feature 2 → Feature 3.** The frontend for 1 and 2 is done and waiting on you; Feature 3 (offline support) is a large architecture change that touches how *every* screen fetches data — build it last so you're not redoing Features 1/2's already-built screens on top of a data-fetching layer that doesn't exist yet.
 
 ---
 
@@ -61,11 +61,14 @@ CREATE TABLE IF NOT EXISTS article_comments (
 - `GET /api/articles/:id/comments`, `POST /api/articles/:id/comments` (body `{ user_id, body }`), `DELETE /api/comments/:id` (body `{ user_id, is_admin }` — allow the delete if the comment's `user_id` matches the requester, or if `is_admin` is true).
 - **Auth note**: there is no auth middleware anywhere in this codebase today — every endpoint trusts whatever `user_id`/`is_admin` the client sends (see `markGuideViewed` in `subjectController.js` for precedent). The comment-deletion check above is consistent with that existing (weak) trust model, not a new gap you're introducing. If real auth gets added later, this is one of the endpoints that would need it most.
 
-### Frontend — what already exists / what to expect calling into
+### Frontend — already built, calling the endpoints above
 
-The frontend work for this feature is **not yet built either** — if you're doing backend-only work, coordinate with whoever picks up the frontend side on the exact request/response shapes above before finalizing them, since these are proposed shapes, not a contract that's already been agreed with working UI. For reference, the intended frontend pieces are:
-- New student screen `screens/CommunityBoardScreen.js` (list + category filter tabs), new shared `screens/ArticleDetailScreen.js` (full article + like + comments), new admin screen `screens/admin/AdminCommunityBoardScreen.js` (article CRUD).
-- New bottom-nav tab in `components/BottomNav.js`, new admin dashboard tile in `screens/admin/AdminDashboardScreen.js`, new routes registered in `navigation/AppNavigator.js` (`CommunityBoard`, `ArticleDetail`, `AdminCommunityBoard`).
+All of this is already in the codebase, calling exactly the endpoints/shapes specified above — **build the backend to match this contract**, not the other way around, since the UI already exists and was verified end-to-end against a mocked/missing backend (confirmed graceful failure with no crashes):
+- `screens/CommunityBoardScreen.js` — student list + category filter tabs (All / Module / Improvement), calls `GET /api/articles?user_id=`. Registered as the "Community" tab in the bottom nav (`components/BottomNav.js`).
+- `screens/ArticleDetailScreen.js` (shared student/admin) — full article body, a like toggle button (`POST /api/articles/:id/like`), and a comment list + add-comment form (`GET`/`POST /api/articles/:id/comments`, `DELETE /api/comments/:id`). The delete button on a comment only renders client-side if `comment.user_id === current user` or `user.is_admin` — but **the backend must also enforce this**, since a client-side-only check is not real authorization.
+- `screens/admin/AdminCommunityBoardScreen.js` — article CRUD (category picker, conditional subject-chip picker for "module" articles, multiline body), calls `GET/POST/PUT/DELETE /api/articles`. Linked from a new "Community Board" tile on `screens/admin/AdminDashboardScreen.js`.
+- All three screens are registered in `navigation/AppNavigator.js` as `CommunityBoard`, `ArticleDetail`, `AdminCommunityBoard`.
+- **One shape note**: `ArticleDetailScreen.js` expects each comment to optionally include a `username` field (falls back to "Student" if absent) — include a joined username in `GET /api/articles/:id/comments` if you want real names displayed, otherwise the fallback is harmless.
 
 ---
 
@@ -88,11 +91,10 @@ Nullable at the DB/API level on purpose — existing questions (and any direct A
 
 - `backend/controllers/quizController.js` — `createQuestion` and `updateQuestion` currently destructure `{ subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer }` from the body and build a parameterized INSERT/UPDATE. Add `explanation` and `hint` to that destructure and to the INSERT/UPDATE column list + values array, the same way `activity_id` was added in a previous change. **Do not** add them to the required-fields validation (`if (!subject_id || !question || ...)`) — keep that check as-is.
 
-### Frontend — what already exists / what to expect calling into
+### Frontend — already built, waiting on the backend columns
 
-Again, not yet built — the intended frontend pieces, for context:
-- `screens/admin/AdminActivityQuestionsScreen.js` and `screens/admin/AdminPaperQuestionsScreen.js` (currently identical question-CRUD forms) get two new multiline inputs ("Explanation", "Hint / Clue"), required before save, included in the POST/PUT body to `/api/quiz`.
-- A new shared `components/ExplanationModal.js`, shown by `screens/ActivityQuizScreen.js` and `screens/PaperQuizScreen.js` when a student picks the wrong answer — showing the correct answer, explanation, and hint, with a "Continue" button. Legacy questions with no `explanation`/`hint` set should still show the modal, with a graceful fallback message ("No explanation provided for this question yet") rather than blank text — so the backend response for a question should just return `null` for these fields as-is; the frontend handles the fallback display.
+- `screens/admin/AdminActivityQuestionsScreen.js` and `screens/admin/AdminPaperQuestionsScreen.js` already have two new multiline inputs ("Explanation", "Hint / Clue"), required client-side before save (blocks the Save button with an inline error if empty), and already included in the POST/PUT body to `/api/quiz` as `explanation`/`hint`. **Until you add the columns**, the backend's `createQuestion`/`updateQuestion` will silently ignore these two extra body fields (no error — they're just not in the destructure/INSERT yet) — so questions save fine today, but the explanation/hint text typed by the admin isn't actually persisted until you wire it up.
+- New shared `components/ExplanationModal.js` is built and wired into both `screens/ActivityQuizScreen.js` and `screens/PaperQuizScreen.js` — verified live: when a student picks the wrong answer, the quiz timer pauses, the modal shows the correct answer + explanation + hint, and advancing only happens after "Continue" is tapped. Right now, since the backend never stores/returns `explanation`/`hint`, the modal correctly shows its graceful fallback text ("No explanation provided for this question yet") for every question — that's expected and will start showing real content the moment the two columns exist and `getQuiz`/`GET /api/quiz` returns them (no frontend change needed, `getQuiz` already does `SELECT *`).
 
 ---
 
