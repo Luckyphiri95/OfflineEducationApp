@@ -215,4 +215,78 @@ db.serialize(() => {
   );
 });
 
+// ======================
+// CREATE ARTICLES TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    category TEXT NOT NULL,
+    subject_id INTEGER,
+    author_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id),
+    FOREIGN KEY(author_id) REFERENCES users(id)
+    )
+  `);
+});
+
+// ======================
+// CREATE ARTICLE LIKES TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS article_likes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(article_id, user_id),
+      FOREIGN KEY(article_id) REFERENCES articles(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+});
+
+// ======================
+// CREATE ARTICLE COMMENTS TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS article_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(article_id) REFERENCES articles(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+});
+
+// ======================
+// CREATE ARTICLE REPORTS TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS article_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(article_id, user_id),
+      FOREIGN KEY(article_id) REFERENCES articles(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+});
+
+
+
+
 module.exports = db;
