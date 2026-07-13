@@ -2,6 +2,16 @@
 
 This document is for the developer picking up backend work on **MzansiGo** (formerly "OfflineEducationApp" — see `README.md`). It describes three pieces of work; **the frontend for Features 1 and 2 is already built** (see "Frontend — already built" under each) and is currently calling endpoints that don't exist on the backend yet — those calls fail gracefully (friendly error states, no crashes) until the backend catches up. Feature 3 (offline support) has no frontend or backend work started yet — it's still a plan.
 
+## Current status at a glance
+
+| | Frontend | Backend | Notes |
+|---|---|---|---|
+| **Feature 1** — Community Board | ✅ Built & verified | ❌ Not started | Screens call `GET/POST/PUT/DELETE /api/articles`, `.../like`, `.../comments` — all currently 404/fail gracefully. Build the 3 new tables + `articleController`/`articleRoutes` per the spec below. |
+| **Feature 2** — Wrong-answer explanation + clue | ✅ Built & verified | ❌ Not started | `ExplanationModal` is wired into both quiz screens and shows the graceful "no explanation yet" fallback for every question today, since the backend doesn't have `explanation`/`hint` columns yet. Add the 2 columns + update `createQuestion`/`updateQuestion` — no frontend change needed once that's done. |
+| **Feature 3** — Offline support + sync | ❌ Not started | ❌ Not started | Pure plan — do this last, after 1 and 2. See Phase A–D below; Phase A (hosting) blocks everything else in this feature. |
+
+**Bottom line for your first PR**: implement Feature 1's backend, then Feature 2's backend (much smaller — 2 columns + one function edit each in `createQuestion`/`updateQuestion`). Both are fully specced below with exact schema and endpoint shapes — the frontend is already built and waiting, don't redesign the contract.
+
 **Read `README.md` and `HANDOVER.md` first** for the current state of the app (architecture, existing screens/endpoints, admin flows). This document only covers the three new pieces below.
 
 **Recommended order: Feature 1 → Feature 2 → Feature 3.** The frontend for 1 and 2 is done and waiting on you; Feature 3 (offline support) is a large architecture change that touches how *every* screen fetches data — build it last so you're not redoing Features 1/2's already-built screens on top of a data-fetching layer that doesn't exist yet.
