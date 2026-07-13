@@ -8,6 +8,7 @@ import colors from '../theme/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import BASE_URL from '../config';
+import { confirmAction } from '../utils/confirmAction';
 
 export default function ArticleDetailScreen({ route, navigation }) {
   const { article, user } = route.params || {};
@@ -69,27 +70,22 @@ export default function ArticleDetailScreen({ route, navigation }) {
   };
 
   const deleteComment = (comment) => {
-    Alert.alert(
-      'Delete Comment',
-      'Delete this comment? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await fetch(`${BASE_URL}/api/comments/${comment.id}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: user?.id, is_admin: !!user?.is_admin }),
-              });
-              loadComments();
-            } catch {
-              Alert.alert('Error', 'Could not delete comment.');
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Delete Comment',
+      message: 'Delete this comment? This cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await fetch(`${BASE_URL}/api/comments/${comment.id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user?.id, is_admin: !!user?.is_admin }),
+          });
+          loadComments();
+        } catch {
+          Alert.alert('Error', 'Could not delete comment.');
+        }
+      },
+    });
   };
 
   const canDelete = (comment) => comment.user_id === user?.id || user?.is_admin;

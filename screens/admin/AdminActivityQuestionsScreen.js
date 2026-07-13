@@ -8,6 +8,7 @@ import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
+import { confirmAction } from '../../utils/confirmAction';
 
 const EMPTY_FORM = {
   question: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: 'option_a',
@@ -112,21 +113,16 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
   };
 
   const deleteQuestion = (q) => {
-    Alert.alert(
-      'Delete Question',
-      'Delete this question? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await fetch(`${BASE_URL}/api/quiz/${q.id}`, { method: 'DELETE' });
-              loadQuestions();
-            } catch { Alert.alert('Error', 'Could not delete question.'); }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Delete Question',
+      message: 'Delete this question? This cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await fetch(`${BASE_URL}/api/quiz/${q.id}`, { method: 'DELETE' });
+          loadQuestions();
+        } catch { Alert.alert('Error', 'Could not delete question.'); }
+      },
+    });
   };
 
   const getCorrectLabel = (q) => {
