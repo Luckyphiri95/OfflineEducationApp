@@ -65,14 +65,18 @@ db.serialize(() => {
       option_c TEXT NOT NULL,
       option_d TEXT NOT NULL,
       correct_answer TEXT NOT NULL,
+      explanation TEXT,
+      hint TEXT,
       FOREIGN KEY(subject_id) REFERENCES subjects(id),
       FOREIGN KEY(paper_id) REFERENCES past_papers(id),
       FOREIGN KEY(activity_id) REFERENCES activities(id)
     )
   `);
-  // Add paper_id/activity_id to existing databases that were created before these columns existed
-  db.run(`ALTER TABLE quiz ADD COLUMN paper_id INTEGER`, () => {});
-  db.run(`ALTER TABLE quiz ADD COLUMN activity_id INTEGER`, () => {});
+// Add paper_id/activity_id/explanation/hint to existing databases that were created before these columns existed
+db.run(`ALTER TABLE quiz ADD COLUMN paper_id INTEGER`, () => {});
+db.run(`ALTER TABLE quiz ADD COLUMN activity_id INTEGER`, () => {});
+db.run(`ALTER TABLE quiz ADD COLUMN explanation TEXT`, () => {});
+db.run(`ALTER TABLE quiz ADD COLUMN hint TEXT`, () => {});
 });
 
 // ======================
