@@ -1,6 +1,8 @@
-# Offline-First Educational Mobile App
+# MzansiGo
 
 A React Native / Expo mobile application for student learning — each subject has an Introduction, multiple quiz Activities, a PDF Study Guide, and Past Papers (with their own practice quizzes) — plus an in-app admin panel for managing all of it, and completion-based progress tracking.
+
+> Formerly "OfflineEducationApp" — the GitHub repo and project folder keep the original name; only the app's display name and branding have changed to MzansiGo.
 
 ---
 
