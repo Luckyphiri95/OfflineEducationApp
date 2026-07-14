@@ -65,14 +65,18 @@ db.serialize(() => {
       option_c TEXT NOT NULL,
       option_d TEXT NOT NULL,
       correct_answer TEXT NOT NULL,
+      explanation TEXT,
+      hint TEXT,
       FOREIGN KEY(subject_id) REFERENCES subjects(id),
       FOREIGN KEY(paper_id) REFERENCES past_papers(id),
       FOREIGN KEY(activity_id) REFERENCES activities(id)
     )
   `);
-  // Add paper_id/activity_id to existing databases that were created before these columns existed
-  db.run(`ALTER TABLE quiz ADD COLUMN paper_id INTEGER`, () => {});
-  db.run(`ALTER TABLE quiz ADD COLUMN activity_id INTEGER`, () => {});
+// Add paper_id/activity_id/explanation/hint to existing databases that were created before these columns existed
+db.run(`ALTER TABLE quiz ADD COLUMN paper_id INTEGER`, () => {});
+db.run(`ALTER TABLE quiz ADD COLUMN activity_id INTEGER`, () => {});
+db.run(`ALTER TABLE quiz ADD COLUMN explanation TEXT`, () => {});
+db.run(`ALTER TABLE quiz ADD COLUMN hint TEXT`, () => {});
 });
 
 // ======================
@@ -210,5 +214,79 @@ db.serialize(() => {
     }
   );
 });
+
+// ======================
+// CREATE ARTICLES TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    category TEXT NOT NULL,
+    subject_id INTEGER,
+    author_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(subject_id) REFERENCES subjects(id),
+    FOREIGN KEY(author_id) REFERENCES users(id)
+    )
+  `);
+});
+
+// ======================
+// CREATE ARTICLE LIKES TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS article_likes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(article_id, user_id),
+      FOREIGN KEY(article_id) REFERENCES articles(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+});
+
+// ======================
+// CREATE ARTICLE COMMENTS TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS article_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(article_id) REFERENCES articles(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+});
+
+// ======================
+// CREATE ARTICLE REPORTS TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS article_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      article_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      reason TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(article_id, user_id),
+      FOREIGN KEY(article_id) REFERENCES articles(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+});
+
+
+
 
 module.exports = db;
