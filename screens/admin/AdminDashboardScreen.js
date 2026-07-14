@@ -127,7 +127,13 @@ export default function AdminDashboardScreen({ navigation, route }) {
           onPress={() => navigation.navigate('AdminCommunityBoard', { user })}
         />
         <NavTile
-          icon="👥"
+          icon="�"
+          title="Learner Progress"
+          subtitle="Track student progress and drill into completed content"
+          onPress={() => navigation.navigate('AdminProgress', { user })}
+        />
+        <NavTile
+          icon="�👥"
           title="Users"
           subtitle="View and manage student accounts"
           onPress={() => navigation.navigate('AdminUsers', { user })}

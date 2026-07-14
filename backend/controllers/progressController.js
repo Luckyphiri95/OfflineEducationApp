@@ -7,18 +7,19 @@ const db = require("../database/database");
 // ======================
 const getProgress = (req, res) => {
   const userId = req.query.user_id;
+  const includeDetails = req.query.include_details === "1" || req.query.include_details === "true";
 
   if (!userId) {
     return res.status(400).json({ message: "user_id is required" });
   }
 
-  db.all(`SELECT id, guide_filename FROM subjects`, [], (err, subjects) => {
+  db.all(`SELECT id, name, guide_filename FROM subjects`, [], (err, subjects) => {
     if (err) {
       return res.status(500).json({ message: "Database error" });
     }
 
     db.all(
-      `SELECT DISTINCT activity_id, subject_id FROM quiz WHERE activity_id IS NOT NULL`,
+      `SELECT id, subject_id, title FROM activities`,
       [],
       (err2, activityRows) => {
         if (err2) {
@@ -26,7 +27,7 @@ const getProgress = (req, res) => {
         }
 
         db.all(
-          `SELECT DISTINCT paper_id, subject_id FROM quiz WHERE paper_id IS NOT NULL`,
+          `SELECT id, subject_id, title FROM past_papers`,
           [],
           (err3, paperRows) => {
             if (err3) {
@@ -62,16 +63,32 @@ const getProgress = (req, res) => {
                         const viewedGuideSubjectIds = new Set(guideViewRows.map((r) => r.subject_id));
 
                         const progress = subjects.map((s) => {
-                          const activityIds = activityRows.filter((r) => r.subject_id === s.id).map((r) => r.activity_id);
-                          const paperIds = paperRows.filter((r) => r.subject_id === s.id).map((r) => r.paper_id);
+                          const subjectActivities = activityRows.filter((r) => r.subject_id === s.id);
+                          const subjectPapers = paperRows.filter((r) => r.subject_id === s.id);
                           const hasGuide = !!s.guide_filename;
 
-                          const total = activityIds.length + paperIds.length + (hasGuide ? 1 : 0);
-                          const completedActivities = activityIds.filter((id) => completedActivityIds.has(id)).length;
-                          const completedPapers = paperIds.filter((id) => completedPaperIds.has(id)).length;
-                          const completedGuide = hasGuide && viewedGuideSubjectIds.has(s.id) ? 1 : 0;
-                          const completed = completedActivities + completedPapers + completedGuide;
+                          const activityItems = subjectActivities.map((activity) => ({
+                            id: activity.id,
+                            title: activity.title || `Activity ${activity.id}`,
+                            type: "activity",
+                            completed: completedActivityIds.has(activity.id),
+                          }));
+                          const paperItems = subjectPapers.map((paper) => ({
+                            id: paper.id,
+                            title: paper.title || `Past Paper ${paper.id}`,
+                            type: "paper",
+                            completed: completedPaperIds.has(paper.id),
+                          }));
+                          const guideItem = hasGuide ? [{
+                            id: s.id,
+                            title: "Study guide",
+                            type: "guide",
+                            completed: viewedGuideSubjectIds.has(s.id),
+                          }] : [];
 
+                          const details = [...activityItems, ...paperItems, ...guideItem];
+                          const total = details.length;
+                          const completed = details.filter((item) => item.completed).length;
                           const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
                           let status;
                           if (total === 0) status = "No Content";
@@ -79,7 +96,15 @@ const getProgress = (req, res) => {
                           else if (completed < total) status = "In Progress";
                           else status = "Complete";
 
-                          return { subject_id: s.id, total, completed, pct, status };
+                          return {
+                            subject_id: s.id,
+                            subject_name: s.name,
+                            total,
+                            completed,
+                            pct,
+                            status,
+                            ...(includeDetails ? { details } : {}),
+                          };
                         });
 
                         return res.status(200).json(progress);
