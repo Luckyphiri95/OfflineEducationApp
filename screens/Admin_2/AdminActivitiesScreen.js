@@ -4,25 +4,22 @@ import {
   Alert, StatusBar, Platform, KeyboardAvoidingView, ScrollView,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import * as DocumentPicker from 'expo-document-picker';
 import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
-import { confirmAction } from '../../utils/confirmAction';
 
-const EMPTY_FORM = { title: '', year: '' };
+const EMPTY_FORM = { title: '' };
 
-export default function AdminPapersScreen({ navigation }) {
+export default function AdminActivitiesScreen({ navigation }) {
   const [subjects, setSubjects] = useState([]);
-  const [papers, setPapers] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [questionCounts, setQuestionCounts] = useState({});
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
-  const [editingFile, setEditingFile] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
   const [error, setError] = useState('');
 
   const loadSubjects = async () => {
@@ -34,29 +31,37 @@ export default function AdminPapersScreen({ navigation }) {
     } catch { }
   };
 
-  const loadPapers = useCallback(async (subject) => {
+  const loadActivities = useCallback(async (subject) => {
     if (!subject) return;
     try {
-      const data = await fetch(`${BASE_URL}/api/papers`).then((r) => r.json());
-      setPapers(Array.isArray(data) ? data.filter((p) => p.subject_id === subject.id) : []);
+      const [activityData, quizData] = await Promise.all([
+        fetch(`${BASE_URL}/api/activities`).then((r) => r.json()),
+        fetch(`${BASE_URL}/api/quiz`).then((r) => r.json()),
+      ]);
+      setActivities(Array.isArray(activityData) ? activityData.filter((a) => a.subject_id === subject.id) : []);
+      const counts = {};
+      if (Array.isArray(quizData)) {
+        quizData.forEach((q) => {
+          if (q.activity_id) counts[q.activity_id] = (counts[q.activity_id] || 0) + 1;
+        });
+      }
+      setQuestionCounts(counts);
     } catch { }
   }, []);
 
   useFocusEffect(useCallback(() => { loadSubjects(); }, []));
-  useFocusEffect(useCallback(() => { loadPapers(selectedSubject); }, [selectedSubject]));
+  useFocusEffect(useCallback(() => { loadActivities(selectedSubject); }, [selectedSubject]));
 
   const openAdd = () => {
     setForm(EMPTY_FORM);
     setEditingId(null);
-    setEditingFile(null);
     setError('');
     setShowForm(true);
   };
 
-  const openEdit = (paper) => {
-    setForm({ title: paper.title, year: paper.year || '' });
-    setEditingId(paper.id);
-    setEditingFile({ filename: paper.filename || null, original_name: paper.original_name || null });
+  const openEdit = (activity) => {
+    setForm({ title: activity.title });
+    setEditingId(activity.id);
     setError('');
     setShowForm(true);
   };
@@ -65,70 +70,18 @@ export default function AdminPapersScreen({ navigation }) {
     setShowForm(false);
     setForm(EMPTY_FORM);
     setEditingId(null);
-    setEditingFile(null);
     setError('');
   };
 
-  const pickAndUploadFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
-    if (result.canceled || !result.assets?.length) return;
-
-    const file = result.assets[0];
-    setUploadingFile(true);
-    try {
-      const formData = new FormData();
-      if (Platform.OS === 'web') {
-        formData.append('pdf', file.file, file.name || 'past-paper.pdf');
-      } else {
-        formData.append('pdf', {
-          uri: file.uri,
-          name: file.name || 'past-paper.pdf',
-          type: 'application/pdf',
-        });
-      }
-
-      const res = await fetch(`${BASE_URL}/api/papers/${editingId}/file`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setEditingFile({ filename: data.filename, original_name: data.original_name });
-      loadPapers(selectedSubject);
-    } catch {
-      Alert.alert('Error', 'Failed to upload past paper PDF. Please try again.');
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-  const removeFile = () => {
-    confirmAction({
-      title: 'Remove PDF',
-      message: 'This will remove the uploaded PDF for this past paper.',
-      confirmLabel: 'Remove',
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/papers/${editingId}/file`, { method: 'DELETE' });
-          setEditingFile({ filename: null, original_name: null });
-          loadPapers(selectedSubject);
-        } catch {
-          Alert.alert('Error', 'Could not remove PDF.');
-        }
-      },
-    });
-  };
-
-  const savePaper = async () => {
+  const saveActivity = async () => {
     if (!form.title.trim()) { setError('Title is required'); return; }
     setSaving(true);
     try {
       const body = {
         subject_id: selectedSubject.id,
         title: form.title.trim(),
-        year: form.year.trim(),
       };
-      const url = editingId ? `${BASE_URL}/api/papers/${editingId}` : `${BASE_URL}/api/papers`;
+      const url = editingId ? `${BASE_URL}/api/activities/${editingId}` : `${BASE_URL}/api/activities`;
       const method = editingId ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
@@ -137,44 +90,48 @@ export default function AdminPapersScreen({ navigation }) {
       });
       if (!res.ok) throw new Error();
       cancelForm();
-      loadPapers(selectedSubject);
+      loadActivities(selectedSubject);
     } catch {
-      setError('Failed to save past paper. Please try again.');
+      setError('Failed to save activity. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const deletePaper = (paper) => {
-    confirmAction({
-      title: 'Delete Past Paper',
-      message: `Delete "${paper.title}"? This also removes its practice questions and PDF.`,
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/papers/${paper.id}`, { method: 'DELETE' });
-          loadPapers(selectedSubject);
-        } catch { Alert.alert('Error', 'Could not delete past paper.'); }
-      },
-    });
+  const deleteActivity = (activity) => {
+    Alert.alert(
+      'Delete Activity',
+      `Delete "${activity.title}"? This also removes its questions.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/activities/${activity.id}`, { method: 'DELETE' });
+              loadActivities(selectedSubject);
+            } catch { Alert.alert('Error', 'Could not delete activity.'); }
+          },
+        },
+      ]
+    );
   };
 
   const renderItem = ({ item }) => (
     <View style={styles.row}>
       <View style={styles.rowText}>
         <Text style={styles.rowName}>{item.title}</Text>
-        {item.year ? <Text style={styles.rowDesc}>{item.year}</Text> : null}
-        {item.filename ? <Text style={styles.rowGuide}>📄 PDF attached</Text> : null}
+        <Text style={styles.rowDesc}>{questionCounts[item.id] || 0} question{questionCounts[item.id] === 1 ? '' : 's'}</Text>
       </View>
       <TouchableOpacity
         style={styles.questionsBtn}
-        onPress={() => navigation.navigate('AdminPaperQuestions', { paper: item })}
+        onPress={() => navigation.navigate('AdminActivityQuestions', { activity: item })}
       >
         <Text style={styles.questionsBtnText}>Questions</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
         <Text style={styles.editBtnText}>Edit</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.deleteBtn} onPress={() => deletePaper(item)}>
+      <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteActivity(item)}>
         <Text style={styles.deleteBtnText}>Del</Text>
       </TouchableOpacity>
     </View>
@@ -189,7 +146,7 @@ export default function AdminPapersScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Past Papers</Text>
+          <Text style={styles.headerTitle}>Activities</Text>
         </View>
 
         {/* Subject chips */}
@@ -210,69 +167,35 @@ export default function AdminPapersScreen({ navigation }) {
         {showForm ? (
           <ScrollView style={styles.formScroll} keyboardShouldPersistTaps="handled">
             <View style={styles.formCard}>
-              <Text style={styles.formTitle}>{editingId ? 'Edit Past Paper' : 'Add Past Paper'}</Text>
+              <Text style={styles.formTitle}>{editingId ? 'Edit Activity' : 'Add Activity'}</Text>
               <Input
                 label="Title"
                 value={form.title}
                 onChangeText={(v) => { setForm((f) => ({ ...f, title: v })); setError(''); }}
-                placeholder="e.g. Mathematics Paper 1"
+                placeholder="e.g. Chapter 1 Quiz"
               />
-              <Input
-                label="Year"
-                value={form.year}
-                onChangeText={(v) => setForm((f) => ({ ...f, year: v }))}
-                placeholder="e.g. 2023"
-              />
-
-              {editingId ? (
-                <View style={styles.guideSection}>
-                  <Text style={styles.guideLabel}>Past Paper (PDF)</Text>
-                  {editingFile?.filename ? (
-                    <View style={styles.guideCurrent}>
-                      <Text style={styles.guideFileText} numberOfLines={1}>
-                        📄 {editingFile.original_name || editingFile.filename}
-                      </Text>
-                      <TouchableOpacity onPress={removeFile}>
-                        <Text style={styles.guideRemoveText}>Remove</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <Text style={styles.guideEmptyText}>No PDF uploaded yet.</Text>
-                  )}
-                  <View style={{ marginTop: 10 }}>
-                    <Button
-                      title={uploadingFile ? 'Uploading...' : editingFile?.filename ? 'Replace PDF' : 'Upload PDF'}
-                      onPress={pickAndUploadFile}
-                      variant="secondary"
-                      disabled={uploadingFile}
-                    />
-                  </View>
-                </View>
-              ) : (
-                <Text style={styles.guideEmptyText}>Save the past paper first to attach a PDF.</Text>
-              )}
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
               <View style={styles.formRow}>
                 <Button title="Cancel" onPress={cancelForm} variant="secondary" />
                 <View style={{ width: 10 }} />
-                <Button title={saving ? 'Saving...' : 'Save'} onPress={savePaper} disabled={saving} />
+                <Button title={saving ? 'Saving...' : 'Save'} onPress={saveActivity} disabled={saving} />
               </View>
             </View>
           </ScrollView>
         ) : (
           <>
             <View style={styles.addWrap}>
-              <Button title="+ Add Past Paper" onPress={openAdd} disabled={!selectedSubject} />
+              <Button title="+ Add Activity" onPress={openAdd} disabled={!selectedSubject} />
             </View>
             <FlatList
-              data={papers}
+              data={activities}
               keyExtractor={(item) => String(item.id)}
               renderItem={renderItem}
               contentContainerStyle={styles.list}
               ListEmptyComponent={
                 <Text style={styles.emptyText}>
-                  {selectedSubject ? 'No past papers for this subject yet.' : 'Select a subject above.'}
+                  {selectedSubject ? 'No activities for this subject yet.' : 'Select a subject above.'}
                 </Text>
               }
             />
@@ -324,19 +247,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, marginRight: 8 },
   rowName: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   rowDesc: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  rowGuide: { fontSize: 11, color: colors.primary, fontWeight: '700', marginTop: 4 },
-  guideSection: {
-    borderTopWidth: 1, borderTopColor: colors.border,
-    marginTop: 10, paddingTop: 14, marginBottom: 4,
-  },
-  guideLabel: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
-  guideCurrent: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.background, borderRadius: 10, padding: 10,
-  },
-  guideFileText: { flex: 1, fontSize: 13, color: colors.textPrimary, marginRight: 8 },
-  guideRemoveText: { fontSize: 12, fontWeight: '700', color: colors.error },
-  guideEmptyText: { fontSize: 12, color: colors.textSecondary, marginBottom: 4 },
   questionsBtn: {
     backgroundColor: colors.badgeWarning, borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 6, marginRight: 6,

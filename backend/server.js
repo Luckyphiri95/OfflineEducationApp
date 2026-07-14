@@ -11,7 +11,7 @@ const quizRoutes = require("./routes/quizRoutes");
 const paperRoutes = require("./routes/paperRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const progressRoutes = require("./routes/progressRoutes");
-
+const articleRoutes = require("./routes/articleRoutes");
 const app = express();
 
 app.use(cors());
@@ -35,6 +35,9 @@ app.use("/api", activityRoutes);
 
 // PROGRESS ROUTES
 app.use("/api", progressRoutes);
+
+// ARTICLE ROUTES
+app.use("/api", articleRoutes);
 
 
 app.get("/", (req, res) => {

@@ -1,6 +1,8 @@
-# Offline-First Educational Mobile App
+# MzansiGo
 
-A React Native / Expo mobile application for student learning — featuring subject browsing, quizzes, progress tracking, PDF study guides, and an in-app admin panel for managing all content.
+A React Native / Expo mobile application for student learning — each subject has an Introduction, multiple quiz Activities, a PDF Study Guide, and Past Papers (with their own practice quizzes) — plus an in-app admin panel for managing all of it, and completion-based progress tracking.
+
+> Formerly "OfflineEducationApp" — the GitHub repo and project folder keep the original name; only the app's display name and branding have changed to MzansiGo.
 
 ---
 
@@ -11,12 +13,11 @@ A React Native / Expo mobile application for student learning — featuring subj
 3. [Project Structure](#project-structure)
 4. [Setup & Running the Project](#setup--running-the-project)
 5. [Running on a Physical Android Device](#running-on-a-physical-android-device)
-6. [Admin Panel](#admin-panel)
-7. [Adding a PDF Study Guide](#adding-a-pdf-study-guide)
-8. [Adding Topics for a Subject](#adding-topics-for-a-subject)
-9. [API Reference](#api-reference)
-10. [Testing Checklist](#testing-checklist)
-11. [Troubleshooting](#troubleshooting)
+6. [App Structure: Subjects & Progress](#app-structure-subjects--progress)
+7. [Admin Panel](#admin-panel)
+8. [API Reference](#api-reference)
+9. [Testing Checklist](#testing-checklist)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -28,6 +29,7 @@ A React Native / Expo mobile application for student learning — featuring subj
 | Navigation | React Navigation v7 (Stack) |
 | Backend | Node.js + Express (runs locally) |
 | Database | SQLite (via sqlite3) |
+| File uploads | multer (PDF study guides & past papers) |
 | Auth | bcrypt password hashing |
 
 ---
@@ -57,14 +59,23 @@ OfflineEducationApp/
 │   ├── server.js             # Express server (port 3000)
 │   ├── controllers/
 │   │   ├── authController.js
-│   │   ├── subjectController.js
-│   │   └── quizController.js
+│   │   ├── subjectController.js    # subjects CRUD + study guide upload/view-tracking
+│   │   ├── activityController.js   # activities CRUD (per-subject mini-quizzes)
+│   │   ├── paperController.js      # past papers CRUD + PDF upload
+│   │   ├── quizController.js       # question CRUD + quiz scoring
+│   │   └── progressController.js   # per-subject completion % calculation
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── subjectRoutes.js
-│   │   └── quizRoutes.js
+│   │   ├── activityRoutes.js
+│   │   ├── paperRoutes.js
+│   │   ├── quizRoutes.js
+│   │   └── progressRoutes.js
+│   ├── middleware/
+│   │   └── upload.js         # shared multer config for PDF uploads
+│   ├── uploads/               # uploaded PDFs land here (gitignored)
 │   └── database/
-│       └── database.js       # SQLite table definitions (app.db auto-created)
+│       └── database.js       # SQLite table definitions + migrations (app.db auto-created)
 │
 ├── navigation/
 │   └── AppNavigator.js       # All screen routes
@@ -75,14 +86,19 @@ OfflineEducationApp/
 │   ├── ForgotPasswordScreen.js
 │   ├── DashboardScreen.js
 │   ├── SubjectScreen.js
-│   ├── SubjectDetailsScreen.js  ← PDF guide URLs and topics live here
-│   ├── QuizScreen.js
+│   ├── SubjectDetailsScreen.js   # 4-tab layout: Introduction / Activities / Study Guide / Past Papers
+│   ├── ActivityQuizScreen.js     # taking a named Activity's quiz
+│   ├── PaperQuizScreen.js        # taking a past paper's practice quiz
+│   ├── StudyGuideViewerScreen.js # in-app PDF viewer (native WebView / web iframe)
 │   ├── ResultsScreen.js
 │   ├── ProgressScreen.js
 │   └── admin/
 │       ├── AdminDashboardScreen.js
-│       ├── AdminSubjectsScreen.js
-│       ├── AdminQuestionsScreen.js
+│       ├── AdminSubjectsScreen.js         # subjects + study guide PDF upload
+│       ├── AdminActivitiesScreen.js       # activities per subject
+│       ├── AdminActivityQuestionsScreen.js # questions per activity
+│       ├── AdminPapersScreen.js           # past papers + PDF upload per subject
+│       ├── AdminPaperQuestionsScreen.js   # practice questions per past paper
 │       └── AdminUsersScreen.js
 │
 ├── components/
@@ -98,7 +114,7 @@ OfflineEducationApp/
 │   └── colors.js             # Design system colours
 │
 └── utils/
-    └── progress.js           # Fetches and computes per-subject progress
+    └── progress.js           # Thin wrapper around GET /api/progress
 ```
 
 ---
@@ -156,9 +172,11 @@ Connected to SQLite database
 Server running on port 3000
 ```
 
-The database file `backend/database/app.db` is created automatically on first run. Keep this terminal open — the server must stay running while using the app.
+The database file `backend/database/app.db` is created automatically on first run, and any pending schema migrations (new tables/columns from ongoing development) run automatically too — this is safe to happen on every restart. Keep this terminal open — the server must stay running while using the app.
 
 > **Important:** If the terminal returns to the prompt immediately, another process may still be using port 3000. Run `lsof -ti:3000 | xargs kill -9` then restart the server.
+
+> **Tip:** `npm run dev` (from the project root) starts both the backend and Expo together in one terminal — see `package.json`.
 
 ### 6. Start the Expo app
 
@@ -209,9 +227,37 @@ Run `npx expo start` and scan the QR code shown in the terminal.
 
 ---
 
+## App Structure: Subjects & Progress
+
+Each subject (`SubjectDetailsScreen.js`) is organized into four tabs:
+
+| Tab | What it shows |
+|---|---|
+| **Introduction** | The subject's description (set via the admin panel) plus a static "What You Will Learn" list |
+| **Activities** | Independent named mini-quizzes (e.g. "Chapter 1 Quiz", "Chapter 2 Quiz") — each has its own set of questions and its own timer/score, unrelated to the others |
+| **Study Guide** | A single PDF per subject, viewable in-app; the first time a student opens it, that's recorded so it counts toward their progress |
+| **Past Papers** | A list of past exam papers per subject, each with an optional PDF to view and an optional set of practice questions to attempt |
+
+### Progress
+
+A subject's progress bar reflects **completion**, not quiz score:
+
+```
+completed = (activities attempted) + (past papers with practice attempted) + (1 if study guide viewed)
+total     = (activities with questions) + (past papers with practice questions) + (1 if a study guide PDF is uploaded)
+pct       = completed / total
+```
+
+- If nothing has been uploaded for a subject yet, its status shows **"No Content"** rather than 0%.
+- This is computed entirely server-side by `GET /api/progress?user_id=` (see `backend/controllers/progressController.js`) — the frontend (`utils/progress.js`) just fetches and displays it.
+- A past paper that only has an uploaded PDF (no practice questions attached) does **not** currently count toward the total — only past papers *with* practice questions do, since there's no "viewed this paper's PDF" tracking (only the study guide has that).
+- `ProgressScreen.js` separately shows an "Avg Score" stat and a "Recent Quizzes" list — those are based on actual quiz scores (from the `results` table) and are independent of the completion percentage above.
+
+---
+
 ## Admin Panel
 
-The app includes a built-in admin panel for managing subjects, quiz questions, and users — no terminal or database access required after initial setup.
+The app includes a built-in admin panel for managing subjects, activities, past papers, and users — no terminal or database access required after initial setup.
 
 ### Granting admin access
 
@@ -234,22 +280,32 @@ On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the
 | Screen | Actions |
 |---|---|
 | **Admin Dashboard** | Overview — total subjects, questions, and users |
-| **Subjects** | Add, edit, and delete subjects |
-| **Quiz Questions** | Select a subject, then add, edit, and delete questions |
+| **Subjects** | Add, edit, and delete subjects; upload/replace/remove each subject's Study Guide PDF |
+| **Activities** | Select a subject, then add/edit/delete named Activities; tap **Questions** on an Activity to add/edit/delete its questions |
+| **Past Papers** | Select a subject, then add/edit/delete Past Papers and upload/replace/remove each one's PDF; tap **Questions** on a paper to add/edit/delete its practice questions |
 | **Users** | View all registered users, delete accounts |
 
 ### Adding a new subject
 
 1. Log in as admin → tap **Subjects**
 2. Tap **+ Add Subject**, fill in the name and description, tap **Save**
-3. Note the subject ID — you will need it to add topics and a PDF guide in the code
+3. Optionally, edit the subject again to upload a Study Guide PDF (the upload option only appears once the subject has been saved)
 
-### Adding quiz questions
+### Adding activities and their questions
 
-1. Log in as admin → tap **Quiz Questions**
+1. Log in as admin → tap **Activities**
 2. Select the subject using the chips at the top
-3. Tap **+ Add Question**, fill in the question, four options, and select the correct answer (A/B/C/D)
-4. Tap **Save**
+3. Tap **+ Add Activity**, give it a title (e.g. "Chapter 1 Quiz"), tap **Save**
+4. Tap **Questions** on that activity, then **+ Add Question** — fill in the question, four options, and select the correct answer (A/B/C/D), tap **Save**
+5. Repeat for as many activities/questions as needed — each activity is fully independent, so a student's attempt on one doesn't affect any other
+
+### Adding past papers and their practice questions
+
+1. Log in as admin → tap **Past Papers**
+2. Select the subject using the chips at the top
+3. Tap **+ Add Past Paper**, fill in a title and year, tap **Save**
+4. Edit the paper again to upload its PDF (**Upload PDF** button, appears once saved)
+5. Tap **Questions** on that paper to add practice questions, same form as Activities
 
 ### Resetting the database
 
@@ -260,59 +316,7 @@ rm backend/database/app.db
 node backend/server.js
 ```
 
-All tables are recreated automatically. You will need to re-grant admin access and re-add subjects and questions via the admin panel.
-
----
-
-## Adding a PDF Study Guide
-
-PDF study guides are configured per subject in [screens/SubjectDetailsScreen.js](screens/SubjectDetailsScreen.js).
-
-Find the `PDF_GUIDES` map near the top of the file:
-
-```js
-const PDF_GUIDES = {
-  1: null,  // Mathematics — replace null with a URL when ready
-  2: null,  // English
-  3: null,  // Science
-  4: 'https://learning.richfield.ac.za/mod/resource/view.php?id=558437', // Computer Studies
-};
-```
-
-Replace `null` with the full URL of the PDF or web page. Supported link types: Google Drive, Dropbox, OneDrive, or any direct public URL.
-
-When a new subject is added via the admin panel, find its ID and add an entry here:
-
-```js
-5: 'https://your-guide-url.com/guide.pdf',  // ← new subject id 5
-```
-
-Until a URL is added, the button shows "Coming soon" and tapping it displays a friendly alert.
-
----
-
-## Adding Topics for a Subject
-
-Topics shown on the Subject Details screen are configured in [screens/SubjectDetailsScreen.js](screens/SubjectDetailsScreen.js).
-
-Find the `TOPICS_BY_SUBJECT` map:
-
-```js
-const TOPICS_BY_SUBJECT = {
-  1: ['Algebra and equations', 'Geometry and shapes', 'Statistics and data', 'Number systems'],
-  2: ['Grammar and punctuation', 'Reading comprehension', 'Essay writing', 'Vocabulary building'],
-  3: ['Scientific method', 'Biology basics', 'Chemistry fundamentals', 'Physics concepts'],
-  4: ['Introduction to programming', 'Data structures', 'Algorithms', 'Databases and SQL'],
-};
-```
-
-Add a new entry using the subject's ID:
-
-```js
-5: ['Ancient civilisations', 'The apartheid era', 'World War history', 'SA political history'],
-```
-
-If a subject has no entry in this map, it falls back to a default generic topics list.
+All tables are recreated automatically. You will need to re-grant admin access and re-add content via the admin panel.
 
 ---
 
@@ -320,22 +324,61 @@ If a subject has no entry in this map, it falls back to a default generic topics
 
 All endpoints are available at `http://localhost:3000`.
 
+### Auth
+
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/api/auth/register` | Register a new user |
 | POST | `/api/auth/login` | Login (returns `is_admin` flag) |
 | GET | `/api/auth/users` | List all users |
 | DELETE | `/api/auth/users/:id` | Delete a user |
+
+### Subjects & Study Guide
+
+| Method | Endpoint | Description |
+|---|---|---|
 | GET | `/api/subjects` | List all subjects |
 | POST | `/api/subjects` | Create a subject |
 | PUT | `/api/subjects/:id` | Update a subject |
 | DELETE | `/api/subjects/:id` | Delete a subject |
-| GET | `/api/quiz` | Get all quiz questions |
-| POST | `/api/quiz` | Add a quiz question |
-| PUT | `/api/quiz/:id` | Update a quiz question |
-| DELETE | `/api/quiz/:id` | Delete a quiz question |
-| POST | `/api/submitQuiz` | Submit answers and get score |
-| GET | `/api/results` | Get all quiz results |
+| POST | `/api/subjects/:id/guide` | Upload/replace a subject's study guide PDF (`multipart/form-data`, field `pdf`) |
+| DELETE | `/api/subjects/:id/guide` | Remove a subject's study guide PDF |
+| POST | `/api/subjects/:id/guide/view` | Record that a user has viewed the study guide (body: `{ user_id }`) |
+
+### Activities & Questions
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/activities` | List all activities (all subjects) |
+| POST | `/api/activities` | Create an activity (`{ subject_id, title }`) |
+| PUT | `/api/activities/:id` | Update an activity |
+| DELETE | `/api/activities/:id` | Delete an activity (cascades: deletes its questions) |
+| GET | `/api/quiz` | Get all quiz questions (activity- and paper-scoped alike — filter client-side by `activity_id`/`paper_id`) |
+| POST | `/api/quiz` | Add a question (`{ subject_id, activity_id? , paper_id?, question, option_a..d, correct_answer }`) |
+| PUT | `/api/quiz/:id` | Update a question |
+| DELETE | `/api/quiz/:id` | Delete a question |
+| POST | `/api/submitActivityQuiz` | Submit answers for an Activity (`{ user_id, subject_id, activity_id, answers }`) → returns score |
+
+### Past Papers
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/papers` | List all past papers (all subjects) |
+| POST | `/api/papers` | Create a past paper (`{ subject_id, title, year }`) |
+| PUT | `/api/papers/:id` | Update a past paper |
+| DELETE | `/api/papers/:id` | Delete a past paper (cascades: deletes its questions + PDF file) |
+| POST | `/api/papers/:id/file` | Upload/replace a past paper's PDF (`multipart/form-data`, field `pdf`) |
+| DELETE | `/api/papers/:id/file` | Remove a past paper's PDF |
+| POST | `/api/submitPaperQuiz` | Submit answers for a past paper's practice quiz (`{ user_id, subject_id, paper_id, answers }`) → returns score |
+
+### Results & Progress
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/results` | Get all quiz results (all users — filter client-side by `user_id`); each row has a `type` of `'activity'` or `'paper'` |
+| GET | `/api/progress?user_id=` | Per-subject completion `{ subject_id, total, completed, pct, status }` for that user — see [Progress](#app-structure-subjects--progress) |
+
+Uploaded PDFs are served statically at `http://localhost:3000/uploads/<filename>`.
 
 ---
 
@@ -355,14 +398,15 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 
 - [ ] Register a new account on the Register screen
 - [ ] Log in using the **Student** toggle
-- [ ] Dashboard loads — subjects appear, progress bars show 0%
-- [ ] Navigate to a subject — subject details and topics are visible
-- [ ] Start a quiz — questions load correctly
-- [ ] Answer all questions and submit — Results screen shows correct score
-- [ ] Return to Dashboard — progress bar for that subject has updated
-- [ ] Navigate to Progress screen — stats and recent quizzes match Dashboard
-- [ ] Tap **View Study Guide** on Computer Studies — opens the link in a browser
-- [ ] Tap **View Study Guide** on another subject — shows "Coming soon" alert
+- [ ] Dashboard loads — subjects appear, progress bars show either a % or "No Content"
+- [ ] Navigate to a subject — the 4 tabs render: Introduction, Activities, Study Guide, Past Papers
+- [ ] **Introduction** tab shows the subject's description
+- [ ] **Activities** tab lists activities with question counts — start one, answer all questions, submit
+- [ ] Results screen shows the correct score, and "Try Again" retakes the same activity
+- [ ] **Study Guide** tab — tap View Study Guide (or see "Coming soon" if none uploaded); the subject's progress % increases after the first view
+- [ ] **Past Papers** tab — View PDF opens the paper; Practice (if available) launches its own quiz
+- [ ] Return to Dashboard — that subject's progress bar has updated to reflect what was just completed
+- [ ] Navigate to Progress screen — "Subject Completion" bar matches the Dashboard, "Recent Quizzes" lists the attempt labeled by Activity/Paper name
 - [ ] Forgot Password flow completes without error
 
 ### Admin flow
@@ -372,22 +416,19 @@ Use this checklist when testing the app end-to-end on a new machine or after a f
 - [ ] Switch to the **Admin** toggle on Login and log in
 - [ ] Admin Dashboard loads with correct subject, question, and user counts
 - [ ] **Subjects** — add a new subject, it appears in the list immediately
-- [ ] **Subjects** — edit the subject name, change is reflected
-- [ ] **Subjects** — delete the subject, it disappears from the list
-- [ ] **Quiz Questions** — select a subject, add a question with correct answer set to B or C
-- [ ] **Quiz Questions** — edit the question, save, verify the change
-- [ ] **Quiz Questions** — delete the question
-- [ ] **Users** — all registered users appear in the list
-- [ ] **Users** — your own account shows a "You" badge and has no Delete button
-- [ ] **Users** — delete another user, confirm they disappear from the list
+- [ ] **Subjects** — edit the subject, upload a study guide PDF, confirm it shows on the student side
+- [ ] **Activities** — select a subject, add an activity, add a question, confirm it appears only under that activity (not leaking into other activities or past papers)
+- [ ] **Past Papers** — add a paper, upload its PDF, add a practice question, confirm it appears only under that paper
+- [ ] **Users** — all registered users appear in the list; delete a non-self user, confirm they disappear
 - [ ] Log out — switch to Student toggle, confirm non-admin accounts are blocked from Admin login
 
 ### Edge cases
 
 - [ ] Attempting to log in with wrong password shows an error
 - [ ] Attempting Admin login with a non-admin account shows "This account does not have admin access"
-- [ ] Taking a quiz for a subject with no questions shows a "No questions found" message
+- [ ] An Activity or Past Paper with no questions yet shows a disabled "No questions yet"/"No practice questions" state rather than crashing
 - [ ] Progress bars do not go negative or exceed 100%
+- [ ] Activity questions and Past Paper questions never appear in each other's lists
 
 ---
 
@@ -428,9 +469,9 @@ node backend/server.js
 
 Then re-grant admin access and re-add content via the admin panel.
 
-### Quiz screen shows "No questions found"
+### Activities tab or Past Papers tab shows nothing
 
-No questions have been added for that subject yet. Log in as admin and add questions via the **Quiz Questions** screen.
+No activities/papers have been added for that subject yet. Log in as admin and add them via the **Activities** or **Past Papers** screen.
 
 ### Port 3000 already in use
 
@@ -440,6 +481,6 @@ lsof -ti:3000 | xargs kill -9
 
 Then restart the backend.
 
-### Progress bars not updating after a quiz
+### Progress bars not updating after a quiz or viewing the study guide
 
-Navigate away and come back — screens use `useFocusEffect` to refresh automatically. If still not updating, check that `POST /api/submitQuiz` returns a `200` response in the backend terminal.
+Navigate away and come back — screens use `useFocusEffect` to refresh automatically. If still not updating, check the backend terminal for a non-200 response on `POST /api/submitActivityQuiz`, `POST /api/submitPaperQuiz`, or `POST /api/subjects/:id/guide/view`.

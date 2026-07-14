@@ -13,12 +13,16 @@ import PaperQuizScreen from '../screens/PaperQuizScreen';
 import ActivityQuizScreen from '../screens/ActivityQuizScreen';
 import ResultsScreen from '../screens/ResultsScreen';
 import ProgressScreen from '../screens/ProgressScreen';
+import CommunityBoardScreen from '../screens/CommunityBoardScreen';
+import ArticleDetailScreen from '../screens/ArticleDetailScreen';
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import AdminSubjectsScreen from '../screens/admin/AdminSubjectsScreen';
 import AdminActivitiesScreen from '../screens/admin/AdminActivitiesScreen';
 import AdminActivityQuestionsScreen from '../screens/admin/AdminActivityQuestionsScreen';
 import AdminPapersScreen from '../screens/admin/AdminPapersScreen';
 import AdminPaperQuestionsScreen from '../screens/admin/AdminPaperQuestionsScreen';
+import AdminCommunityBoardScreen from '../screens/admin/AdminCommunityBoardScreen';
+import AdminProgressScreen from '../screens/admin/AdminProgressScreen';
 import AdminUsersScreen from '../screens/admin/AdminUsersScreen';
 
 const Stack = createStackNavigator();
@@ -38,12 +42,16 @@ export default function AppNavigator() {
         <Stack.Screen name="ActivityQuiz" component={ActivityQuizScreen} />
         <Stack.Screen name="Results" component={ResultsScreen} />
         <Stack.Screen name="Progress" component={ProgressScreen} />
+        <Stack.Screen name="CommunityBoard" component={CommunityBoardScreen} />
+        <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} />
         <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
         <Stack.Screen name="AdminSubjects" component={AdminSubjectsScreen} />
         <Stack.Screen name="AdminActivities" component={AdminActivitiesScreen} />
         <Stack.Screen name="AdminActivityQuestions" component={AdminActivityQuestionsScreen} />
         <Stack.Screen name="AdminPapers" component={AdminPapersScreen} />
         <Stack.Screen name="AdminPaperQuestions" component={AdminPaperQuestionsScreen} />
+        <Stack.Screen name="AdminCommunityBoard" component={AdminCommunityBoardScreen} />
+        <Stack.Screen name="AdminProgress" component={AdminProgressScreen} />
         <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
       </Stack.Navigator>
     </NavigationContainer>

@@ -5,6 +5,7 @@ import colors from '../theme/colors';
 const TABS = [
   { name: 'Dashboard', label: 'Home', icon: '🏠' },
   { name: 'Subjects', label: 'Subjects', icon: '📚' },
+  { name: 'CommunityBoard', label: 'Community', icon: '📝' },
   { name: 'Progress', label: 'Progress', icon: '📊' },
 ];
 

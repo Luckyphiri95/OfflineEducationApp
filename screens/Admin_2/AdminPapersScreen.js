@@ -9,7 +9,6 @@ import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
-import { confirmAction } from '../../utils/confirmAction';
 
 const EMPTY_FORM = { title: '', year: '' };
 
@@ -103,20 +102,24 @@ export default function AdminPapersScreen({ navigation }) {
   };
 
   const removeFile = () => {
-    confirmAction({
-      title: 'Remove PDF',
-      message: 'This will remove the uploaded PDF for this past paper.',
-      confirmLabel: 'Remove',
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/papers/${editingId}/file`, { method: 'DELETE' });
-          setEditingFile({ filename: null, original_name: null });
-          loadPapers(selectedSubject);
-        } catch {
-          Alert.alert('Error', 'Could not remove PDF.');
-        }
-      },
-    });
+    Alert.alert(
+      'Remove PDF',
+      'This will remove the uploaded PDF for this past paper.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/papers/${editingId}/file`, { method: 'DELETE' });
+              setEditingFile({ filename: null, original_name: null });
+              loadPapers(selectedSubject);
+            } catch {
+              Alert.alert('Error', 'Could not remove PDF.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const savePaper = async () => {
@@ -146,16 +149,21 @@ export default function AdminPapersScreen({ navigation }) {
   };
 
   const deletePaper = (paper) => {
-    confirmAction({
-      title: 'Delete Past Paper',
-      message: `Delete "${paper.title}"? This also removes its practice questions and PDF.`,
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/papers/${paper.id}`, { method: 'DELETE' });
-          loadPapers(selectedSubject);
-        } catch { Alert.alert('Error', 'Could not delete past paper.'); }
-      },
-    });
+    Alert.alert(
+      'Delete Past Paper',
+      `Delete "${paper.title}"? This also removes its practice questions and PDF.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/papers/${paper.id}`, { method: 'DELETE' });
+              loadPapers(selectedSubject);
+            } catch { Alert.alert('Error', 'Could not delete past paper.'); }
+          },
+        },
+      ]
+    );
   };
 
   const renderItem = ({ item }) => (

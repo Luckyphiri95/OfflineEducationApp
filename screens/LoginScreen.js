@@ -62,7 +62,7 @@ export default function LoginScreen({ navigation }) {
       {/* Blue top section */}
       <View style={styles.blueHeader}>
         <SafeAreaView>
-          <Text style={styles.appName}>EduApp</Text>
+          <Text style={styles.appName}>MzansiGo</Text>
           <Text style={styles.heroTitle}>Welcome Back!</Text>
           <Text style={styles.heroSubtitle}>Login to continue your learning journey</Text>
         </SafeAreaView>
