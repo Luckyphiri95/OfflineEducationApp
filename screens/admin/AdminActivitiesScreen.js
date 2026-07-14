@@ -8,6 +8,7 @@ import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
+import { confirmAction } from '../../utils/confirmAction';
 
 const EMPTY_FORM = { title: '' };
 
@@ -99,21 +100,16 @@ export default function AdminActivitiesScreen({ navigation }) {
   };
 
   const deleteActivity = (activity) => {
-    Alert.alert(
-      'Delete Activity',
-      `Delete "${activity.title}"? This also removes its questions.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await fetch(`${BASE_URL}/api/activities/${activity.id}`, { method: 'DELETE' });
-              loadActivities(selectedSubject);
-            } catch { Alert.alert('Error', 'Could not delete activity.'); }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Delete Activity',
+      message: `Delete "${activity.title}"? This also removes its questions.`,
+      onConfirm: async () => {
+        try {
+          await fetch(`${BASE_URL}/api/activities/${activity.id}`, { method: 'DELETE' });
+          loadActivities(selectedSubject);
+        } catch { Alert.alert('Error', 'Could not delete activity.'); }
+      },
+    });
   };
 
   const renderItem = ({ item }) => (

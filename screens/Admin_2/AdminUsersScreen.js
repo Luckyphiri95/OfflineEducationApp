@@ -6,7 +6,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import BASE_URL from '../../config';
-import { confirmAction } from '../../utils/confirmAction';
 
 function formatDate(dateStr) {
   if (!dateStr) return '—';
@@ -31,16 +30,21 @@ export default function AdminUsersScreen({ navigation, route }) {
       Alert.alert('Cannot Delete', 'You cannot delete your own account while logged in.');
       return;
     }
-    confirmAction({
-      title: 'Delete User',
-      message: `Delete "${user.username}" (${user.email})? This cannot be undone.`,
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/auth/users/${user.id}`, { method: 'DELETE' });
-          load();
-        } catch { Alert.alert('Error', 'Could not delete user.'); }
-      },
-    });
+    Alert.alert(
+      'Delete User',
+      `Delete "${user.username}" (${user.email})? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/auth/users/${user.id}`, { method: 'DELETE' });
+              load();
+            } catch { Alert.alert('Error', 'Could not delete user.'); }
+          },
+        },
+      ]
+    );
   };
 
   const renderItem = ({ item }) => {

@@ -1,7 +1,7 @@
-# Offline Education App - Backend API Documentation
+# MzansiGo - Backend API Documentation
 
 ## Base URL
-http://localhost:5000/api
+http://localhost:3000/api
 
 ---
 

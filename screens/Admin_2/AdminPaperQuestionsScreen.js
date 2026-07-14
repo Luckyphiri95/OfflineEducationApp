@@ -8,7 +8,6 @@ import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
-import { confirmAction } from '../../utils/confirmAction';
 
 const EMPTY_FORM = {
   question: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: 'option_a',
@@ -22,8 +21,8 @@ const ANSWER_OPTIONS = [
   { key: 'option_d', label: 'D' },
 ];
 
-export default function AdminActivityQuestionsScreen({ navigation, route }) {
-  const { activity } = route.params || {};
+export default function AdminPaperQuestionsScreen({ navigation, route }) {
+  const { paper } = route.params || {};
   const [questions, setQuestions] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
@@ -32,12 +31,12 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
   const [error, setError] = useState('');
 
   const loadQuestions = useCallback(async () => {
-    if (!activity) return;
+    if (!paper) return;
     try {
       const data = await fetch(`${BASE_URL}/api/quiz`).then((r) => r.json());
-      setQuestions(Array.isArray(data) ? data.filter((q) => q.activity_id === activity.id) : []);
+      setQuestions(Array.isArray(data) ? data.filter((q) => q.paper_id === paper.id) : []);
     } catch { }
-  }, [activity]);
+  }, [paper]);
 
   useFocusEffect(useCallback(() => { loadQuestions(); }, [loadQuestions]));
 
@@ -84,8 +83,8 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
     setSaving(true);
     try {
       const body = {
-        subject_id: activity.subject_id,
-        activity_id: activity.id,
+        subject_id: paper.subject_id,
+        paper_id: paper.id,
         question: question.trim(),
         option_a: option_a.trim(),
         option_b: option_b.trim(),
@@ -113,16 +112,21 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
   };
 
   const deleteQuestion = (q) => {
-    confirmAction({
-      title: 'Delete Question',
-      message: 'Delete this question? This cannot be undone.',
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/quiz/${q.id}`, { method: 'DELETE' });
-          loadQuestions();
-        } catch { Alert.alert('Error', 'Could not delete question.'); }
-      },
-    });
+    Alert.alert(
+      'Delete Question',
+      'Delete this question? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/quiz/${q.id}`, { method: 'DELETE' });
+              loadQuestions();
+            } catch { Alert.alert('Error', 'Could not delete question.'); }
+          },
+        },
+      ]
+    );
   };
 
   const getCorrectLabel = (q) => {
@@ -154,8 +158,8 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Activity Questions</Text>
-          <Text style={styles.headerSub}>{activity?.title}</Text>
+          <Text style={styles.headerTitle}>Practice Questions</Text>
+          <Text style={styles.headerSub}>{paper?.title}{paper?.year ? ` (${paper.year})` : ''}</Text>
         </View>
 
         {showForm ? (
@@ -223,7 +227,7 @@ export default function AdminActivityQuestionsScreen({ navigation, route }) {
               renderItem={renderItem}
               contentContainerStyle={styles.list}
               ListEmptyComponent={
-                <Text style={styles.emptyText}>No questions for this activity yet.</Text>
+                <Text style={styles.emptyText}>No practice questions for this paper yet.</Text>
               }
             />
           </>

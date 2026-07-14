@@ -9,7 +9,6 @@ import colors from '../../theme/colors';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import BASE_URL from '../../config';
-import { confirmAction } from '../../utils/confirmAction';
 
 const EMPTY_FORM = { name: '', description: '' };
 
@@ -97,20 +96,24 @@ export default function AdminSubjectsScreen({ navigation }) {
   };
 
   const removeGuide = () => {
-    confirmAction({
-      title: 'Remove Study Guide',
-      message: 'This will remove the uploaded PDF for this subject.',
-      confirmLabel: 'Remove',
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/subjects/${editingId}/guide`, { method: 'DELETE' });
-          setEditingGuide({ guide_filename: null, guide_original_name: null });
-          load();
-        } catch {
-          Alert.alert('Error', 'Could not remove study guide.');
-        }
-      },
-    });
+    Alert.alert(
+      'Remove Study Guide',
+      'This will remove the uploaded PDF for this subject.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/subjects/${editingId}/guide`, { method: 'DELETE' });
+              setEditingGuide({ guide_filename: null, guide_original_name: null });
+              load();
+            } catch {
+              Alert.alert('Error', 'Could not remove study guide.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const saveSubject = async () => {
@@ -137,16 +140,21 @@ export default function AdminSubjectsScreen({ navigation }) {
   };
 
   const deleteSubject = (subject) => {
-    confirmAction({
-      title: 'Delete Subject',
-      message: `Delete "${subject.name}"? This cannot be undone.`,
-      onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/subjects/${subject.id}`, { method: 'DELETE' });
-          load();
-        } catch { Alert.alert('Error', 'Could not delete subject.'); }
-      },
-    });
+    Alert.alert(
+      'Delete Subject',
+      `Delete "${subject.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              await fetch(`${BASE_URL}/api/subjects/${subject.id}`, { method: 'DELETE' });
+              load();
+            } catch { Alert.alert('Error', 'Could not delete subject.'); }
+          },
+        },
+      ]
+    );
   };
 
   const renderItem = ({ item }) => (
