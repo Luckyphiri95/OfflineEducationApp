@@ -148,18 +148,55 @@ const getResults = (req, res) => {
 // CREATE QUESTION
 // ======================
 const createQuestion = (req, res) => {
-  const { subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
+  const {   subject_id,
+  paper_id,
+  activity_id,
+  question,
+  option_a,
+  option_b,
+  option_c,
+  option_d,
+  correct_answer,
+  explanation,
+  hint } = req.body;
 
   if (!subject_id || !question || !option_a || !option_b || !option_c || !option_d || !correct_answer) {
     return res.status(400).json({ message: "All fields required" });
   }
 
   const query = `
-    INSERT INTO quiz (subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO quiz (
+subject_id,
+paper_id,
+activity_id,
+question,
+option_a,
+option_b,
+option_c,
+option_d,
+correct_answer,
+explanation,
+hint
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  db.run(query, [subject_id, paper_id || null, activity_id || null, question, option_a, option_b, option_c, option_d, correct_answer], function (err) {
+db.run(
+  query,
+  [
+    subject_id,
+    paper_id || null,
+    activity_id || null,
+    question,
+    option_a,
+    option_b,
+    option_c,
+    option_d,
+    correct_answer,
+    explanation || null,
+    hint || null
+  ],
+  function (err) {
     if (err) {
       return res.status(500).json({ message: "Database error" });
     }
@@ -173,14 +210,26 @@ const createQuestion = (req, res) => {
 // ======================
 const updateQuestion = (req, res) => {
   const { id } = req.params;
-  const { subject_id, paper_id, activity_id, question, option_a, option_b, option_c, option_d, correct_answer } = req.body;
+  const {
+  subject_id,
+  paper_id,
+  activity_id,
+  question,
+  option_a,
+  option_b,
+  option_c,
+  option_d,
+  correct_answer,
+  explanation,
+  hint
+} = req.body;
 
   const query = `
     UPDATE quiz SET subject_id = ?, paper_id = ?, activity_id = ?, question = ?, option_a = ?, option_b = ?,
-    option_c = ?, option_d = ?, correct_answer = ? WHERE id = ?
+    option_c = ?, option_d = ?, correct_answer = ?, explanation = ?, hint = ? WHERE id = ?
   `;
 
-  db.run(query, [subject_id, paper_id || null, activity_id || null, question, option_a, option_b, option_c, option_d, correct_answer, id], function (err) {
+  db.run(query, [subject_id, paper_id || null, activity_id || null, question, option_a, option_b, option_c, option_d, correct_answer, explanation || null, hint || null, id], function (err) {
     if (err) {
       return res.status(500).json({ message: "Database error" });
     }
