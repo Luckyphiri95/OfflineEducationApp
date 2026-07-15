@@ -24,9 +24,6 @@ A past paper that only has an uploaded PDF (no practice questions attached) does
 ### `backend/seed.js` targets a stale schema
 It creates a completely different, disconnected set of tables (`subjects(id,name)`, `modules`, `quizzes`) that doesn't match the real schema in `backend/database/database.js` (`activities`, `quiz`, `past_papers`, etc.). Running it does not seed the real app with usable data. An auto-reseed-on-boot for the hosted Render deploy (to survive its free-tier filesystem resets) was considered and dropped for this reason — worth writing a seeder against the current schema if that's needed later.
 
-### `screens/Admin_2/` is an unreferenced duplicate
-There's a `screens/Admin_2/` directory containing near-duplicates of every file in `screens/admin/` (added in the "Admin edits" commit). Nothing in the app imports from `Admin_2` — `navigation/AppNavigator.js` only references `screens/admin/`. It looks like leftover work-in-progress rather than intentional dead code; worth confirming with whoever added it before deleting.
-
 ### Render free tier has no persistent disk
 `backend/database/app.db` and `backend/uploads/` reset on every redeploy/restart on the free plan. Fine for a demo; a paid persistent disk (or moving to a hosted DB) is the fix if this needs to become a durable deployment.
 
