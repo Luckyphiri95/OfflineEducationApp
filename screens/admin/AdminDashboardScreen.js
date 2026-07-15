@@ -127,13 +127,7 @@ export default function AdminDashboardScreen({ navigation, route }) {
           onPress={() => navigation.navigate('AdminCommunityBoard', { user })}
         />
         <NavTile
-          icon="�"
-          title="Learner Progress"
-          subtitle="Track student progress and drill into completed content"
-          onPress={() => navigation.navigate('AdminProgress', { user })}
-        />
-        <NavTile
-          icon="�👥"
+          icon="👥"
           title="Users"
           subtitle="View and manage student accounts"
           onPress={() => navigation.navigate('AdminUsers', { user })}
@@ -141,7 +135,7 @@ export default function AdminDashboardScreen({ navigation, route }) {
         <NavTile
           icon="📈"
           title="Learner Progress"
-          subtitle="Track students' progress through subjects"
+          subtitle="Track student progress and drill into completed content"
           onPress={() => navigation.navigate('AdminProgress', { user })}
         />
       </ScrollView>
