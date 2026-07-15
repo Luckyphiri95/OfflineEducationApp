@@ -9,6 +9,7 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import BASE_URL from '../config';
 import { saveSession } from '../utils/session';
+import BrandedLoadingScreen from '../components/BrandedLoadingScreen';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -56,6 +57,10 @@ export default function LoginScreen({ navigation }) {
       setLoading(false);
     }
   };
+
+  if (loading) {
+    return <BrandedLoadingScreen />;
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

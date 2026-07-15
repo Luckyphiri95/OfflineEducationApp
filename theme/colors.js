@@ -20,4 +20,6 @@ export default {
   badgeInfoText: '#185fa5',
   badgeError: '#fcebeb',
   badgeErrorText: '#a32d2d',
+  brandNavy: '#0B1E3D',
+  brandGold: '#F5C518',
 };

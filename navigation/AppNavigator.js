@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
-import colors from '../theme/colors';
 import { getSession } from '../utils/session';
+import BrandedLoadingScreen from '../components/BrandedLoadingScreen';
 
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
@@ -50,11 +49,7 @@ export default function AppNavigator() {
   }, []);
 
   if (checkingSession) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+    return <BrandedLoadingScreen />;
   }
 
   return (
