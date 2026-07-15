@@ -1,6 +1,2 @@
-//const BASE_URL = 'https://offlineeducationapp.onrender.com';
-
-//export default BASE_URL;
-
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://mzansigo-backend.onrender.com';
 export default BASE_URL;
