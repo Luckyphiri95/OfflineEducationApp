@@ -1,6 +1,6 @@
 # MzansiGo
 
-A React Native / Expo mobile application for student learning — each subject has an Introduction, multiple quiz Activities, a PDF Study Guide, and Past Papers (with their own practice quizzes) — plus an in-app admin panel for managing all of it, and completion-based progress tracking.
+A React Native / Expo student learning app — each subject has an Introduction, multiple quiz Activities, a PDF Study Guide, and Past Papers (with their own practice quizzes) — plus a Community Board, offline support with background sync, and an in-app admin panel for managing all of it.
 
 > Formerly "OfflineEducationApp" — the GitHub repo and project folder keep the original name; only the app's display name and branding have changed to MzansiGo.
 
@@ -14,10 +14,13 @@ A React Native / Expo mobile application for student learning — each subject h
 4. [Setup & Running the Project](#setup--running-the-project)
 5. [Running on a Physical Android Device](#running-on-a-physical-android-device)
 6. [App Structure: Subjects & Progress](#app-structure-subjects--progress)
-7. [Admin Panel](#admin-panel)
-8. [API Reference](#api-reference)
-9. [Testing Checklist](#testing-checklist)
-10. [Troubleshooting](#troubleshooting)
+7. [Community Board](#community-board)
+8. [Offline Support](#offline-support)
+9. [Admin Panel](#admin-panel)
+10. [Hosted Backend (Render) & Building the APK](#hosted-backend-render--building-the-apk)
+11. [API Reference](#api-reference)
+12. [Testing](#testing)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -27,22 +30,26 @@ A React Native / Expo mobile application for student learning — each subject h
 |---|---|
 | Mobile App | React Native + Expo SDK 56 |
 | Navigation | React Navigation v7 (Stack) |
-| Backend | Node.js + Express (runs locally) |
+| On-device storage | `@react-native-async-storage/async-storage` (cache, session, sync queue) |
+| Connectivity | `@react-native-community/netinfo` |
+| Offline PDFs | `expo-file-system` (native only) |
+| Backend | Node.js + Express |
 | Database | SQLite (via sqlite3) |
 | File uploads | multer (PDF study guides & past papers) |
 | Auth | bcrypt password hashing |
+| Hosting | Render (free tier) — see [Hosted Backend](#hosted-backend-render--building-the-apk) |
+| APK builds | EAS Build (`eas.json`, `preview` profile) |
 
 ---
 
 ## Prerequisites
 
-Make sure the following are installed on your machine before you begin:
-
 - **Node.js** v18 or higher — https://nodejs.org
 - **npm** v9 or higher (comes with Node.js)
-- **Expo Go** app on your phone — install from the App Store or Google Play
+- **Expo Go** app on your phone — install from the App Store or Google Play (for quick testing without a full build)
 - **Git** — https://git-scm.com
-- **sqlite3** CLI — for granting admin access (`brew install sqlite3` on Mac)
+- **sqlite3** CLI — for local admin/DB access (`brew install sqlite3` on Mac)
+- **EAS CLI** (`npm install -g eas-cli`) — only needed if building a standalone APK
 
 ---
 
@@ -50,71 +57,69 @@ Make sure the following are installed on your machine before you begin:
 
 ```
 OfflineEducationApp/
-├── App.js                    # Entry point
+├── App.js                    # Entry point — mounts SyncManager + OfflineBanner above the navigator
 ├── config.example.js         # Template — copy to config.js on first setup
-├── config.js                 # Your local BASE_URL (gitignored)
-├── index.js                  # Expo entry registration
+├── config.js                 # Your local/hosted BASE_URL
+├── render.yaml                # Render Blueprint — see Hosted Backend section
+├── eas.json                   # EAS Build profiles (development / preview / production)
 │
 ├── backend/
 │   ├── server.js             # Express server (port 3000)
 │   ├── controllers/
-│   │   ├── authController.js
+│   │   ├── authController.js       # register/login/users + promoteToAdmin
 │   │   ├── subjectController.js    # subjects CRUD + study guide upload/view-tracking
 │   │   ├── activityController.js   # activities CRUD (per-subject mini-quizzes)
 │   │   ├── paperController.js      # past papers CRUD + PDF upload
-│   │   ├── quizController.js       # question CRUD + quiz scoring
-│   │   └── progressController.js   # per-subject completion % calculation
-│   ├── routes/
-│   │   ├── authRoutes.js
-│   │   ├── subjectRoutes.js
-│   │   ├── activityRoutes.js
-│   │   ├── paperRoutes.js
-│   │   ├── quizRoutes.js
-│   │   └── progressRoutes.js
-│   ├── middleware/
-│   │   └── upload.js         # shared multer config for PDF uploads
+│   │   ├── quizController.js       # question CRUD (incl. explanation/hint) + quiz scoring
+│   │   ├── progressController.js   # per-subject completion % calculation
+│   │   └── articleController.js    # Community Board: articles, likes, comments
+│   ├── routes/                     # one file per controller above
+│   ├── middleware/upload.js  # shared multer config for PDF uploads
 │   ├── uploads/               # uploaded PDFs land here (gitignored)
-│   └── database/
-│       └── database.js       # SQLite table definitions + migrations (app.db auto-created)
+│   └── database/database.js  # SQLite table definitions + migrations (app.db auto-created)
 │
 ├── navigation/
-│   └── AppNavigator.js       # All screen routes
+│   └── AppNavigator.js       # All screen routes; resumes a saved session on launch
 │
 ├── screens/
-│   ├── LoginScreen.js        # Student/Admin toggle
-│   ├── RegisterScreen.js
-│   ├── ForgotPasswordScreen.js
-│   ├── DashboardScreen.js
-│   ├── SubjectScreen.js
+│   ├── LoginScreen.js / RegisterScreen.js / ForgotPasswordScreen.js
+│   ├── DashboardScreen.js / SubjectScreen.js
 │   ├── SubjectDetailsScreen.js   # 4-tab layout: Introduction / Activities / Study Guide / Past Papers
-│   ├── ActivityQuizScreen.js     # taking a named Activity's quiz
-│   ├── PaperQuizScreen.js        # taking a past paper's practice quiz
-│   ├── StudyGuideViewerScreen.js # in-app PDF viewer (native WebView / web iframe)
-│   ├── ResultsScreen.js
-│   ├── ProgressScreen.js
+│   ├── ActivityQuizScreen.js / PaperQuizScreen.js  # quiz-taking, with wrong-answer explanation modal
+│   ├── StudyGuideViewerScreen.js # in-app PDF viewer, caches PDFs on-device for offline viewing
+│   ├── ResultsScreen.js / ProgressScreen.js
+│   ├── CommunityBoardScreen.js / ArticleDetailScreen.js
 │   └── admin/
-│       ├── AdminDashboardScreen.js
-│       ├── AdminSubjectsScreen.js         # subjects + study guide PDF upload
-│       ├── AdminActivitiesScreen.js       # activities per subject
-│       ├── AdminActivityQuestionsScreen.js # questions per activity
-│       ├── AdminPapersScreen.js           # past papers + PDF upload per subject
-│       ├── AdminPaperQuestionsScreen.js   # practice questions per past paper
-│       └── AdminUsersScreen.js
+│       ├── AdminDashboardScreen.js / AdminSubjectsScreen.js / AdminUsersScreen.js
+│       ├── AdminActivitiesScreen.js / AdminActivityQuestionsScreen.js
+│       ├── AdminPapersScreen.js / AdminPaperQuestionsScreen.js
+│       ├── AdminCommunityBoardScreen.js
+│       └── AdminProgressScreen.js
 │
 ├── components/
-│   ├── Button.js
-│   ├── Input.js
-│   ├── Loader.js
-│   ├── BottomNav.js
-│   ├── ProgressCard.js
-│   ├── StatsCard.js
-│   └── ScoreDashboard.js
+│   ├── Button.js / Input.js / Loader.js / Card.js
+│   ├── BottomNav.js / ProgressCard.js / StatsCard.js / ScoreDashboard.js
+│   ├── AnswerSelection.js / QuestionCard.js / ExplanationModal.js
+│   ├── SearchSubjects.js / confirmAction pattern
+│   ├── BrandedLoadingScreen.js  # MzansiGo splash-style loading screen (login + app launch)
+│   ├── OfflineBanner.js         # "You're offline" banner, connectivity-aware
+│   └── SyncManager.js           # invisible root component, flushes the offline write queue
 │
 ├── theme/
-│   └── colors.js             # Design system colours
+│   └── colors.js             # Design system colours (incl. brandNavy/brandGold)
 │
-└── utils/
-    └── progress.js           # Thin wrapper around GET /api/progress
+├── utils/
+│   ├── api.js         # apiGet(path, cacheKey) — network-first with AsyncStorage cache fallback
+│   ├── syncQueue.js   # enqueueOrSend/flushQueue — offline write queue with mutex-protected flush
+│   ├── network.js     # connectivity subscription, fed by both NetInfo and real fetch outcomes
+│   ├── session.js     # persists the logged-in user across app restarts
+│   ├── pdfCache.js    # downloads study guide/past paper PDFs for offline viewing (native only)
+│   ├── progress.js    # thin wrapper around GET /api/progress
+│   └── confirmAction.js
+│
+└── assets/
+    ├── mzansigo-logo.jpeg      # original brand reference (kept for provenance)
+    └── mzansigo-logo-navy.png # cleaned-up version used by BrandedLoadingScreen
 ```
 
 ---
@@ -140,27 +145,25 @@ npm install
 cd backend && npm install && cd ..
 ```
 
-### 4. Create your local config file
+### 4. Set your BASE_URL in config.js
 
-```bash
-cp config.example.js config.js
-```
-
-Open `config.js` and set the URL:
-
-- **Web browser testing** — use `http://localhost:3000`
-- **Android device testing** — use your machine's local IP (see [Running on a Physical Android Device](#running-on-a-physical-android-device))
+`config.js` is tracked in git and currently points at whichever backend you're testing against — either your local server or the hosted Render instance. Open it and set:
 
 ```js
 const BASE_URL = 'http://localhost:3000';
 export default BASE_URL;
 ```
 
-> `config.js` is gitignored — every developer keeps their own copy.
+or, to test against the hosted backend instead of running one locally:
 
-### 5. Start the backend server
+```js
+const BASE_URL = 'https://mzansigo-backend.onrender.com';
+export default BASE_URL;
+```
 
-Open a **first terminal** and run:
+See `config.example.js` for the full set of options (including Android-device local-IP setup) and [Hosted Backend](#hosted-backend-render--building-the-apk) for the free-tier caveats.
+
+### 5. Start the backend server (skip if using the hosted backend)
 
 ```bash
 node backend/server.js
@@ -172,75 +175,61 @@ Connected to SQLite database
 Server running on port 3000
 ```
 
-The database file `backend/database/app.db` is created automatically on first run, and any pending schema migrations (new tables/columns from ongoing development) run automatically too — this is safe to happen on every restart. Keep this terminal open — the server must stay running while using the app.
+The database file `backend/database/app.db` is created automatically on first run, and any pending schema migrations run automatically too. Keep this terminal open.
 
-> **Important:** If the terminal returns to the prompt immediately, another process may still be using port 3000. Run `lsof -ti:3000 | xargs kill -9` then restart the server.
+> **Tip:** `npm run dev` (from the project root) starts both the backend and Expo together in one terminal.
 
-> **Tip:** `npm run dev` (from the project root) starts both the backend and Expo together in one terminal — see `package.json`.
+> If the terminal returns to the prompt immediately, another process is using port 3000: `lsof -ti:3000 | xargs kill -9`, then restart.
 
 ### 6. Start the Expo app
-
-Open a **second terminal** and run:
 
 ```bash
 npx expo start
 ```
 
 - Press **W** to open in a web browser
-- Scan the **QR code** with the Expo Go app on your phone
-- Press **A** to open in an Android emulator (if one is running)
-
-Both terminals must stay open while testing.
+- Scan the **QR code** with Expo Go on your phone
+- Press **A** to open in an Android emulator
 
 ---
 
 ## Running on a Physical Android Device
 
-When testing on an Android phone, `localhost` points to the phone itself — not your machine. You must use your machine's local IP address.
+`localhost` on a phone refers to the phone itself, not your machine. Either:
 
-### Step 1 — Find your IP
+- **Point at the hosted backend** — set `config.js` to `https://mzansigo-backend.onrender.com` and skip the rest of this section entirely, or
+- **Point at your local backend**, using your machine's LAN IP:
 
 ```bash
 # Mac
 ipconfig getifaddr en0
-
 # Windows
 ipconfig
 ```
-
-Example output: `192.168.0.5`
-
-### Step 2 — Update config.js
 
 ```js
 const BASE_URL = 'http://192.168.0.5:3000';  // ← replace with your IP
 export default BASE_URL;
 ```
 
-### Step 3 — Same Wi-Fi network
+Your machine and phone must be on the **same Wi-Fi network**. Then `npx expo start` and scan the QR code with Expo Go.
 
-Your machine and Android phone must be connected to the **same Wi-Fi network**.
-
-### Step 4 — Scan the QR code with Expo Go
-
-Run `npx expo start` and scan the QR code shown in the terminal.
+> **Standalone APK builds** (not Expo Go) bake `config.js` in at build time — see [Hosted Backend & Building the APK](#hosted-backend-render--building-the-apk).
 
 ---
 
 ## App Structure: Subjects & Progress
 
-Each subject (`SubjectDetailsScreen.js`) is organized into four tabs:
+Each subject (`SubjectDetailsScreen.js`) has four tabs:
 
 | Tab | What it shows |
 |---|---|
-| **Introduction** | The subject's description (set via the admin panel) plus a static "What You Will Learn" list |
-| **Activities** | Independent named mini-quizzes (e.g. "Chapter 1 Quiz", "Chapter 2 Quiz") — each has its own set of questions and its own timer/score, unrelated to the others |
-| **Study Guide** | A single PDF per subject, viewable in-app; the first time a student opens it, that's recorded so it counts toward their progress |
-| **Past Papers** | A list of past exam papers per subject, each with an optional PDF to view and an optional set of practice questions to attempt |
+| **Introduction** | The subject's description plus a static "What You Will Learn" list |
+| **Activities** | Independent named mini-quizzes — each has its own questions, score, and (on a wrong answer) an explanation + hint modal |
+| **Study Guide** | A single PDF per subject, viewable in-app and cached on-device after the first view so it's readable offline |
+| **Past Papers** | A list of past exam papers per subject, each with an optional PDF (also cached after first view) and an optional practice quiz |
 
 ### Progress
-
-A subject's progress bar reflects **completion**, not quiz score:
 
 ```
 completed = (activities attempted) + (past papers with practice attempted) + (1 if study guide viewed)
@@ -248,81 +237,104 @@ total     = (activities with questions) + (past papers with practice questions) 
 pct       = completed / total
 ```
 
-- If nothing has been uploaded for a subject yet, its status shows **"No Content"** rather than 0%.
-- This is computed entirely server-side by `GET /api/progress?user_id=` (see `backend/controllers/progressController.js`) — the frontend (`utils/progress.js`) just fetches and displays it.
-- A past paper that only has an uploaded PDF (no practice questions attached) does **not** currently count toward the total — only past papers *with* practice questions do, since there's no "viewed this paper's PDF" tracking (only the study guide has that).
-- `ProgressScreen.js` separately shows an "Avg Score" stat and a "Recent Quizzes" list — those are based on actual quiz scores (from the `results` table) and are independent of the completion percentage above.
+Computed server-side by `GET /api/progress?user_id=` (`backend/controllers/progressController.js`); the frontend (`utils/progress.js`) just fetches and displays it. If nothing has been uploaded for a subject yet, its status shows **"No Content"** rather than 0%.
+
+---
+
+## Community Board
+
+Admin-authored articles in two categories — **module** (tied to a subject) or **improvement** (general, no subject link) — that students browse, like, and comment on.
+
+- Students can toggle a like per article (tap again to unlike) and post/delete their own comments.
+- Admins can delete any comment (moderation) and manage articles from **Admin → Community Board**.
+- Both liking and commenting work offline — see [Offline Support](#offline-support).
+
+---
+
+## Offline Support
+
+The student-facing app works fully offline once content has been loaded once:
+
+- **On-device caching** (`utils/api.js`) — every read (`GET /api/subjects`, `/api/activities`, `/api/papers`, `/api/quiz`, `/api/results`, `/api/progress`, `/api/articles`, comments) tries the network first and falls back to the last cached response on failure, so previously-viewed content still renders offline.
+- **Session persistence** (`utils/session.js`) — logging in survives an app restart/reload; you're taken straight to the Dashboard/Admin Dashboard instead of back to Login.
+- **Offline writes + sync** (`utils/syncQueue.js`) — quiz submissions, study-guide view tracking, article likes, and comments all queue locally when offline and replay automatically once connectivity returns. The queue is mutex-protected so a flaky reconnect can't double-submit the same action twice.
+- **Offline PDFs** (`utils/pdfCache.js`, native only) — study guide and past paper PDFs download to the device the first time they're opened online, then load from that local copy on every subsequent open, including offline. Not available on web (browsers have no persistent filesystem access) — web always falls back to fetching the PDF directly.
+- **Offline banner** (`components/OfflineBanner.js`) — a small banner appears app-wide whenever there's no connection, driven both by the device's connectivity state and by real fetch failures (more reliable than connectivity events alone, especially on web).
+
+Admin screens are **online-only** — they always hit the live API directly, since content management isn't expected to work without a connection.
 
 ---
 
 ## Admin Panel
 
-The app includes a built-in admin panel for managing subjects, activities, past papers, and users — no terminal or database access required after initial setup.
+The app includes a built-in admin panel for managing subjects, activities, past papers, articles, and users.
 
 ### Granting admin access
 
-Admin accounts are regular user accounts with an `is_admin` flag. After registering an account through the app, run this command to grant admin access:
+Admin accounts are regular user accounts with an `is_admin` flag.
+
+**Local database** — after registering an account, run:
 
 ```bash
 sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"
 ```
 
-Then **restart the backend server** — kill it with Ctrl+C and run `node backend/server.js` again.
+Then restart the backend server.
 
-> Only one server instance should be running. Check with `lsof -ti:3000` before restarting.
+**Hosted (Render) backend** — there's no database shell access on the free tier, so use the `promote-admin` endpoint instead (gated by a secret you set yourself, never committed to git):
+
+1. In the Render dashboard → your service → **Environment**, add `ADMIN_PROMOTE_SECRET` = a password of your choice.
+2. Register the account you want promoted (through the app, or `POST /api/auth/register`).
+3. Promote it:
+   ```bash
+   curl -X POST https://mzansigo-backend.onrender.com/api/auth/promote-admin \
+     -H "Content-Type: application/json" \
+     -d '{"email":"you@example.com","secret":"the-secret-you-set-in-step-1"}'
+   ```
 
 ### Logging in as admin
 
-On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the admin credentials. Non-admin accounts attempting admin login will be blocked with an error.
+On the Login screen, tap **Admin** in the Student | Admin toggle, then enter the admin credentials. Non-admin accounts attempting admin login are blocked with an error.
 
 ### What the admin panel can do
 
 | Screen | Actions |
 |---|---|
 | **Admin Dashboard** | Overview — total subjects, questions, and users |
-| **Subjects** | Add, edit, and delete subjects; upload/replace/remove each subject's Study Guide PDF |
-| **Activities** | Select a subject, then add/edit/delete named Activities; tap **Questions** on an Activity to add/edit/delete its questions |
-| **Past Papers** | Select a subject, then add/edit/delete Past Papers and upload/replace/remove each one's PDF; tap **Questions** on a paper to add/edit/delete its practice questions |
+| **Subjects** | Add/edit/delete subjects; upload/replace/remove each subject's Study Guide PDF |
+| **Activities** | Add/edit/delete named Activities per subject; manage each Activity's questions (incl. explanation + hint for wrong answers) |
+| **Past Papers** | Add/edit/delete Past Papers and their PDFs; manage each paper's practice questions |
+| **Community Board** | Add/edit/delete articles; delete any comment |
 | **Users** | View all registered users, delete accounts |
 
-### Adding a new subject
-
-1. Log in as admin → tap **Subjects**
-2. Tap **+ Add Subject**, fill in the name and description, tap **Save**
-3. Optionally, edit the subject again to upload a Study Guide PDF (the upload option only appears once the subject has been saved)
-
-### Adding activities and their questions
-
-1. Log in as admin → tap **Activities**
-2. Select the subject using the chips at the top
-3. Tap **+ Add Activity**, give it a title (e.g. "Chapter 1 Quiz"), tap **Save**
-4. Tap **Questions** on that activity, then **+ Add Question** — fill in the question, four options, and select the correct answer (A/B/C/D), tap **Save**
-5. Repeat for as many activities/questions as needed — each activity is fully independent, so a student's attempt on one doesn't affect any other
-
-### Adding past papers and their practice questions
-
-1. Log in as admin → tap **Past Papers**
-2. Select the subject using the chips at the top
-3. Tap **+ Add Past Paper**, fill in a title and year, tap **Save**
-4. Edit the paper again to upload its PDF (**Upload PDF** button, appears once saved)
-5. Tap **Questions** on that paper to add practice questions, same form as Activities
-
-### Resetting the database
-
-If the database becomes corrupted or you want a clean slate:
+### Resetting the local database
 
 ```bash
 rm backend/database/app.db
 node backend/server.js
 ```
 
-All tables are recreated automatically. You will need to re-grant admin access and re-add content via the admin panel.
+All tables are recreated automatically; re-grant admin access and re-add content afterward.
+
+---
+
+## Hosted Backend (Render) & Building the APK
+
+The backend is deployable to Render's free tier via the `render.yaml` Blueprint at the repo root — see **`RENDER_DEPLOYMENT.md`** for the exact click-through steps and free-tier caveats (no persistent disk — the database resets on redeploy/restart).
+
+To build an installable Android APK (not Expo Go) pointing at whatever `config.js` currently has set:
+
+```bash
+eas build -p android --profile preview
+```
+
+This uploads the project to EAS Build and returns an install link/QR code once it finishes (~10-15 min). Since `config.js` is baked in at build time, **make sure it points at a URL reachable from the test device** (the hosted Render URL, not `localhost`) before building — a build made with `localhost` will fail every request on a real device.
 
 ---
 
 ## API Reference
 
-All endpoints are available at `http://localhost:3000`.
+All endpoints are relative to your `BASE_URL` (`http://localhost:3000` locally, or the hosted Render URL).
 
 ### Auth
 
@@ -331,6 +343,7 @@ All endpoints are available at `http://localhost:3000`.
 | POST | `/api/auth/register` | Register a new user |
 | POST | `/api/auth/login` | Login (returns `is_admin` flag) |
 | GET | `/api/auth/users` | List all users |
+| POST | `/api/auth/promote-admin` | Grant `is_admin` to an account (`{ email, secret }`, requires `ADMIN_PROMOTE_SECRET` env var) |
 | DELETE | `/api/auth/users/:id` | Delete a user |
 
 ### Subjects & Study Guide
@@ -349,94 +362,57 @@ All endpoints are available at `http://localhost:3000`.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/activities` | List all activities (all subjects) |
+| GET | `/api/activities` | List all activities |
 | POST | `/api/activities` | Create an activity (`{ subject_id, title }`) |
-| PUT | `/api/activities/:id` | Update an activity |
-| DELETE | `/api/activities/:id` | Delete an activity (cascades: deletes its questions) |
-| GET | `/api/quiz` | Get all quiz questions (activity- and paper-scoped alike — filter client-side by `activity_id`/`paper_id`) |
-| POST | `/api/quiz` | Add a question (`{ subject_id, activity_id? , paper_id?, question, option_a..d, correct_answer }`) |
-| PUT | `/api/quiz/:id` | Update a question |
-| DELETE | `/api/quiz/:id` | Delete a question |
-| POST | `/api/submitActivityQuiz` | Submit answers for an Activity (`{ user_id, subject_id, activity_id, answers }`) → returns score |
+| PUT / DELETE | `/api/activities/:id` | Update / delete (cascades to its questions) |
+| GET | `/api/quiz` | Get all quiz questions (filter client-side by `activity_id`/`paper_id`) |
+| POST | `/api/quiz` | Add a question (`{ subject_id, activity_id?, paper_id?, question, option_a..d, correct_answer, explanation?, hint? }`) |
+| PUT / DELETE | `/api/quiz/:id` | Update / delete a question |
+| POST | `/api/submitActivityQuiz` | Submit answers (`{ user_id, subject_id, activity_id, answers }`) → returns score |
 
 ### Past Papers
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/papers` | List all past papers (all subjects) |
+| GET | `/api/papers` | List all past papers |
 | POST | `/api/papers` | Create a past paper (`{ subject_id, title, year }`) |
-| PUT | `/api/papers/:id` | Update a past paper |
-| DELETE | `/api/papers/:id` | Delete a past paper (cascades: deletes its questions + PDF file) |
+| PUT / DELETE | `/api/papers/:id` | Update / delete (cascades to its questions + PDF file) |
 | POST | `/api/papers/:id/file` | Upload/replace a past paper's PDF (`multipart/form-data`, field `pdf`) |
 | DELETE | `/api/papers/:id/file` | Remove a past paper's PDF |
-| POST | `/api/submitPaperQuiz` | Submit answers for a past paper's practice quiz (`{ user_id, subject_id, paper_id, answers }`) → returns score |
+| POST | `/api/submitPaperQuiz` | Submit answers (`{ user_id, subject_id, paper_id, answers }`) → returns score |
+
+### Community Board
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/articles` | List all articles |
+| POST | `/api/articles` | Create an article (`{ title, body, category, subject_id?, author_id }`) |
+| PUT / DELETE | `/api/articles/:id` | Update / delete an article |
+| POST | `/api/articles/:id/like` | Toggle like for the requesting user |
+| GET | `/api/articles/:id/comments` | List comments on an article |
+| POST | `/api/articles/:id/comments` | Add a comment (`{ user_id, body }`) |
+| DELETE | `/api/comments/:id` | Delete a comment |
 
 ### Results & Progress
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/results` | Get all quiz results (all users — filter client-side by `user_id`); each row has a `type` of `'activity'` or `'paper'` |
-| GET | `/api/progress?user_id=` | Per-subject completion `{ subject_id, total, completed, pct, status }` for that user — see [Progress](#app-structure-subjects--progress) |
+| GET | `/api/results` | Get all quiz results (filter client-side by `user_id`); each row has a `type` of `'activity'` or `'paper'` |
+| GET | `/api/progress?user_id=` | Per-subject completion `{ subject_id, total, completed, pct, status }` |
 
-Uploaded PDFs are served statically at `http://localhost:3000/uploads/<filename>`.
+Uploaded PDFs are served statically at `<BASE_URL>/uploads/<filename>`.
 
 ---
 
-## Testing Checklist
+## Testing
 
-Use this checklist when testing the app end-to-end on a new machine or after a fresh database reset.
-
-### Setup
-
-- [ ] Cloned repo, ran `npm install` and `cd backend && npm install`
-- [ ] Copied `config.example.js` to `config.js` and set `http://localhost:3000` (web) or local IP (Android)
-- [ ] Backend starts and stays running (`node backend/server.js`)
-- [ ] Expo starts without errors (`npx expo start`)
-- [ ] App loads on web or device
-
-### Student flow
-
-- [ ] Register a new account on the Register screen
-- [ ] Log in using the **Student** toggle
-- [ ] Dashboard loads — subjects appear, progress bars show either a % or "No Content"
-- [ ] Navigate to a subject — the 4 tabs render: Introduction, Activities, Study Guide, Past Papers
-- [ ] **Introduction** tab shows the subject's description
-- [ ] **Activities** tab lists activities with question counts — start one, answer all questions, submit
-- [ ] Results screen shows the correct score, and "Try Again" retakes the same activity
-- [ ] **Study Guide** tab — tap View Study Guide (or see "Coming soon" if none uploaded); the subject's progress % increases after the first view
-- [ ] **Past Papers** tab — View PDF opens the paper; Practice (if available) launches its own quiz
-- [ ] Return to Dashboard — that subject's progress bar has updated to reflect what was just completed
-- [ ] Navigate to Progress screen — "Subject Completion" bar matches the Dashboard, "Recent Quizzes" lists the attempt labeled by Activity/Paper name
-- [ ] Forgot Password flow completes without error
-
-### Admin flow
-
-- [ ] Register an account, then grant admin: `sqlite3 backend/database/app.db "UPDATE users SET is_admin = 1 WHERE email = 'your@email.com';"`
-- [ ] Restart the backend server (only one instance running — check with `lsof -ti:3000`)
-- [ ] Switch to the **Admin** toggle on Login and log in
-- [ ] Admin Dashboard loads with correct subject, question, and user counts
-- [ ] **Subjects** — add a new subject, it appears in the list immediately
-- [ ] **Subjects** — edit the subject, upload a study guide PDF, confirm it shows on the student side
-- [ ] **Activities** — select a subject, add an activity, add a question, confirm it appears only under that activity (not leaking into other activities or past papers)
-- [ ] **Past Papers** — add a paper, upload its PDF, add a practice question, confirm it appears only under that paper
-- [ ] **Users** — all registered users appear in the list; delete a non-self user, confirm they disappear
-- [ ] Log out — switch to Student toggle, confirm non-admin accounts are blocked from Admin login
-
-### Edge cases
-
-- [ ] Attempting to log in with wrong password shows an error
-- [ ] Attempting Admin login with a non-admin account shows "This account does not have admin access"
-- [ ] An Activity or Past Paper with no questions yet shows a disabled "No questions yet"/"No practice questions" state rather than crashing
-- [ ] Progress bars do not go negative or exceed 100%
-- [ ] Activity questions and Past Paper questions never appear in each other's lists
+See **`TESTING.md`** for the full tester-facing test case document, covering setup, student flow, admin flow, Community Board, quiz explanations, offline behavior, and edge cases.
 
 ---
 
 ## Troubleshooting
 
 ### Server exits immediately after starting
-
-Another process may already be using port 3000:
 
 ```bash
 lsof -ti:3000 | xargs kill -9
@@ -445,42 +421,34 @@ node backend/server.js
 
 ### "Could not connect to server"
 
-- Confirm the backend is running (`node backend/server.js` in a separate terminal)
-- Check `config.js` has the correct URL (`http://localhost:3000` for web, local IP for Android)
-- For Android device testing, confirm both devices are on the same Wi-Fi network
+- Confirm the backend is running, or that `config.js` points at a reachable hosted URL
+- For Android device testing, confirm both devices are on the same Wi-Fi network (if using a local backend)
 
-### "User not found" after granting admin
+### "User not found" after granting admin locally
 
-The server was not restarted after the `UPDATE users` command, or multiple server instances are running. Kill all instances and restart:
-
-```bash
-lsof -ti:3000 | xargs kill -9
-node backend/server.js
-```
+The server wasn't restarted after the `UPDATE users` command. Kill all instances and restart.
 
 ### 500 error on login or register
 
-The database may be corrupted. Delete it and restart the server:
+The database may be corrupted:
 
 ```bash
 rm backend/database/app.db
 node backend/server.js
 ```
 
-Then re-grant admin access and re-add content via the admin panel.
-
 ### Activities tab or Past Papers tab shows nothing
 
-No activities/papers have been added for that subject yet. Log in as admin and add them via the **Activities** or **Past Papers** screen.
+No activities/papers have been added for that subject yet — add them from the admin panel.
 
-### Port 3000 already in use
+### Hosted backend feels slow on first request
 
-```bash
-lsof -ti:3000 | xargs kill -9
-```
+Render's free tier spins the instance down after inactivity; the first request after idle can take ~30-50 seconds to wake it up. This is expected — not a bug.
 
-Then restart the backend.
+### App shows stale/cached data instead of the latest changes
 
-### Progress bars not updating after a quiz or viewing the study guide
+That's the offline cache working as intended when there's no connection. Confirm you actually have connectivity (the offline banner should be visible if not) — if online and still stale, pull-to-refresh or navigate away and back to force a fresh fetch.
 
-Navigate away and come back — screens use `useFocusEffect` to refresh automatically. If still not updating, check the backend terminal for a non-200 response on `POST /api/submitActivityQuiz`, `POST /api/submitPaperQuiz`, or `POST /api/subjects/:id/guide/view`.
+### A build made with `config.js` pointing at `localhost` fails every request on a real device
+
+Expected — `localhost` on a physical device means the device itself. Rebuild after pointing `config.js` at a reachable URL (see [Hosted Backend & Building the APK](#hosted-backend-render--building-the-apk)).
