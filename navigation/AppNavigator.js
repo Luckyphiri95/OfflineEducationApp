@@ -39,7 +39,13 @@ export default function AppNavigator() {
   const [initialUser, setInitialUser] = useState(null);
 
   useEffect(() => {
-    getSession().then((user) => {
+    // Keep the branded loading screen up for at least 3s on cold launch,
+    // even though the session check itself usually resolves almost
+    // instantly — otherwise it just flashes and disappears.
+    const MIN_DISPLAY_MS = 3000;
+    const minDelay = new Promise((resolve) => setTimeout(resolve, MIN_DISPLAY_MS));
+
+    Promise.all([getSession(), minDelay]).then(([user]) => {
       if (user) {
         setInitialUser(user);
         setInitialRoute(user.is_admin ? 'AdminDashboard' : 'Dashboard');

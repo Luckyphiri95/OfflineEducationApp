@@ -4,24 +4,33 @@
     "slug": "OfflineEducationApp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/mzansigo-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0B57C6",
+        "foregroundImage": "./assets/mzansigo-icon.png"
       },
       "package": "com.luckyphiri.OfflineEducationApp"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/mzansigo-icon.png"
     },
-    "plugins": ["expo-file-system"],
+    "plugins": [
+      "expo-file-system",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/mzansigo-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B57C6"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "c36faa5e-f89a-43e4-bec8-1ec1c18183e7"

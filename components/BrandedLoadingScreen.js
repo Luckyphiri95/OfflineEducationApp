@@ -5,9 +5,9 @@ import colors from '../theme/colors';
 export default function BrandedLoadingScreen() {
   return (
     <View style={styles.page}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.brandNavy} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.brandBlue} />
       <Image
-        source={require('../assets/mzansigo-logo-navy.png')}
+        source={require('../assets/mzansigo-icon.png')}
         style={styles.logo}
         resizeMode="contain"
       />
@@ -19,7 +19,7 @@ export default function BrandedLoadingScreen() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: colors.brandNavy,
+    backgroundColor: colors.brandBlue,
     alignItems: 'center',
     justifyContent: 'center',
   },

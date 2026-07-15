@@ -22,4 +22,5 @@ export default {
   badgeErrorText: '#a32d2d',
   brandNavy: '#0B1E3D',
   brandGold: '#F5C518',
+  brandBlue: '#0B57C6',
 };
