@@ -197,6 +197,9 @@ const deleteArticle = (req, res) => {
         });
       }
 
+      db.run(`DELETE FROM article_likes WHERE article_id = ?`, [id], () => {});
+      db.run(`DELETE FROM article_comments WHERE article_id = ?`, [id], () => {});
+
       return res.status(200).json({
         message: "Article deleted"
       });
