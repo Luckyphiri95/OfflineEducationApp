@@ -89,6 +89,38 @@ const getUsers = (req, res) => {
 
 
 // ======================
+// PROMOTE USER TO ADMIN
+// ======================
+// Gated by ADMIN_PROMOTE_SECRET (set as an env var, never committed) since
+// there's no other way to grant admin on a hosted deploy with no DB shell
+// access (e.g. Render's free tier). Not wired into any UI — call it once via
+// curl/Postman for whichever account should be an admin, then stop using it.
+const promoteToAdmin = (req, res) => {
+  const { email, secret } = req.body;
+
+  if (!process.env.ADMIN_PROMOTE_SECRET) {
+    return res.status(503).json({ message: "ADMIN_PROMOTE_SECRET is not configured on this server" });
+  }
+  if (secret !== process.env.ADMIN_PROMOTE_SECRET) {
+    return res.status(403).json({ message: "Invalid secret" });
+  }
+  if (!email) {
+    return res.status(400).json({ message: "email is required" });
+  }
+
+  db.run(`UPDATE users SET is_admin = 1 WHERE email = ?`, [email], function (err) {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.status(200).json({ message: `${email} is now an admin` });
+  });
+};
+
+
+// ======================
 // DELETE USER
 // ======================
 const deleteUser = (req, res) => {
@@ -110,5 +142,6 @@ module.exports = {
   register,
   login,
   getUsers,
+  promoteToAdmin,
   deleteUser
 };
