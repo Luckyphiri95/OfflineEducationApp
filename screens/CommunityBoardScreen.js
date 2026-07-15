@@ -7,7 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import colors from '../theme/colors';
 import Loader from '../components/Loader';
 import BottomNav from '../components/BottomNav';
-import BASE_URL from '../config';
+import { apiGet } from '../utils/api';
 
 const FILTERS = [
   { key: 'all', label: 'All' },
@@ -40,16 +40,16 @@ export default function CommunityBoardScreen({ navigation, route }) {
   const [loadError, setLoadError] = useState('');
 
   const loadData = async () => {
-    try {
-      const data = await fetch(`${BASE_URL}/api/articles?user_id=${user?.id || ''}`).then((r) => r.json());
-      setArticles(Array.isArray(data) ? data : []);
+    const { data } = await apiGet(`/api/articles?user_id=${user?.id || ''}`, `articles:${user?.id || 'anon'}`);
+    if (Array.isArray(data)) {
+      setArticles(data);
       setLoadError('');
-    } catch {
-      setLoadError('Could not load the community board. Is the server running?');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    } else {
+      setArticles([]);
+      setLoadError('Could not load the community board. Check your connection and try again.');
     }
+    setLoading(false);
+    setRefreshing(false);
   };
 
   useFocusEffect(useCallback(() => { loadData(); }, []));

@@ -10,7 +10,8 @@ import BottomNav from '../components/BottomNav';
 import StatsCard from '../components/StatsCard';
 import ProgressCard from '../components/ProgressCard';
 import { fetchProgressMap, getSubjectProgress } from '../utils/progress';
-import BASE_URL from '../config';
+import { clearSession } from '../utils/session';
+import { apiGet } from '../utils/api';
 
 function getInitials(name = '') {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -26,11 +27,11 @@ export default function DashboardScreen({ navigation, route }) {
 
   const loadData = async () => {
     try {
-      const [subjectRes, progress] = await Promise.all([
-        fetch(`${BASE_URL}/api/subjects`).then((r) => r.json()),
+      const [{ data: subjectRes }, progress] = await Promise.all([
+        apiGet('/api/subjects', 'subjects'),
         fetchProgressMap(user?.id),
       ]);
-      setSubjects(subjectRes.slice(0, 4));
+      setSubjects(Array.isArray(subjectRes) ? subjectRes.slice(0, 4) : []);
       setProgressMap(progress);
     } catch {
       // fail silently on dashboard
@@ -51,6 +52,7 @@ export default function DashboardScreen({ navigation, route }) {
 
   const handleLogout = () => {
     setMenuVisible(false);
+    clearSession();
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 

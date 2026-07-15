@@ -5,6 +5,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import BASE_URL from '../../config';
+import { clearSession } from '../../utils/session';
 
 function StatCard({ value, label, color }) {
   return (
@@ -57,6 +58,7 @@ export default function AdminDashboardScreen({ navigation, route }) {
   const [counts, setCounts] = useState({ subjects: '—', questions: '—', users: '—' });
 
   const handleLogout = () => {
+    clearSession();
     navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
   };
 

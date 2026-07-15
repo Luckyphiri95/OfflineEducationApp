@@ -7,6 +7,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import colors from '../theme/colors';
 import BASE_URL from '../config';
 import { fetchProgressMap, getSubjectProgress } from '../utils/progress';
+import { apiGet } from '../utils/api';
+import { enqueueOrSend } from '../utils/syncQueue';
 
 const TABS = [
   { key: 'intro', label: 'Introduction' },
@@ -47,13 +49,17 @@ export default function SubjectDetailsScreen({ route, navigation }) {
 
   const loadData = useCallback(async () => {
     try {
-      const [progress, activityData, paperData, quizData, resultsData] = await Promise.all([
+      const [progress, activityRes, paperRes, quizRes, resultsRes] = await Promise.all([
         fetchProgressMap(user?.id),
-        fetch(`${BASE_URL}/api/activities`).then((r) => r.json()),
-        fetch(`${BASE_URL}/api/papers`).then((r) => r.json()),
-        fetch(`${BASE_URL}/api/quiz`).then((r) => r.json()),
-        fetch(`${BASE_URL}/api/results`).then((r) => r.json()),
+        apiGet('/api/activities', 'activities'),
+        apiGet('/api/papers', 'papers'),
+        apiGet('/api/quiz', 'quiz'),
+        apiGet('/api/results', 'results'),
       ]);
+      const activityData = activityRes.data;
+      const paperData = paperRes.data;
+      const quizData = quizRes.data;
+      const resultsData = resultsRes.data;
 
       setProgressMap(progress);
       setActivities(Array.isArray(activityData) ? activityData.filter((a) => a.subject_id === subject.id) : []);
@@ -107,15 +113,13 @@ export default function SubjectDetailsScreen({ route, navigation }) {
       );
       return;
     }
-    try {
-      await fetch(`${BASE_URL}/api/subjects/${subject.id}/guide/view`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id }),
-      });
-    } catch {
-      // non-critical — still let the student view the guide even if this fails
-    }
+    // Non-critical — still let the student view the guide even if this fails;
+    // enqueueOrSend queues it for later sync instead of losing it if offline.
+    enqueueOrSend(`/api/subjects/${subject.id}/guide/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user?.id }),
+    }).catch(() => {});
     navigation.navigate('StudyGuideViewer', { pdfUrl, subjectName: subject.name });
   };
 

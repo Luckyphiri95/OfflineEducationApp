@@ -1,4 +1,4 @@
-import BASE_URL from '../config';
+import { apiGet } from './api';
 
 /**
  * Fetches per-subject completion progress from the backend and returns a
@@ -8,28 +8,26 @@ import BASE_URL from '../config';
  *          / (all activities-with-questions + all papers-with-questions + 1-if-guide-uploaded)
  *
  * Status: 'No Content' (nothing uploaded yet), 'Not Started', 'In Progress', 'Complete'.
+ *
+ * Network-first with a cache fallback (see utils/api.js) — offline, this
+ * returns whatever was last fetched for this user.
  */
 export async function fetchProgressMap(userId) {
   if (!userId) return {};
-  try {
-    const response = await fetch(`${BASE_URL}/api/progress?user_id=${userId}`);
-    if (!response.ok) return {};
-    const rows = await response.json();
+  const { data: rows } = await apiGet(`/api/progress?user_id=${userId}`, `progress:${userId}`);
+  if (!Array.isArray(rows)) return {};
 
-    const map = {};
-    rows.forEach((r) => {
-      map[r.subject_id] = {
-        pct: r.pct,
-        status: r.status,
-        completed: r.completed,
-        total: r.total,
-      };
-    });
+  const map = {};
+  rows.forEach((r) => {
+    map[r.subject_id] = {
+      pct: r.pct,
+      status: r.status,
+      completed: r.completed,
+      total: r.total,
+    };
+  });
 
-    return map;
-  } catch {
-    return {};
-  }
+  return map;
 }
 
 /**

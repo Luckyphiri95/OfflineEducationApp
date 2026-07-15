@@ -6,7 +6,8 @@ import {
 import colors from '../theme/colors';
 import Button from '../components/Button';
 import ExplanationModal from '../components/ExplanationModal';
-import BASE_URL from '../config';
+import { apiGet } from '../utils/api';
+import { enqueueOrSend } from '../utils/syncQueue';
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 const QUIZ_SECONDS = 120;
@@ -46,9 +47,8 @@ export default function ActivityQuizScreen({ route, navigation }) {
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/quiz`);
-        if (!response.ok) throw new Error('Failed to load activity');
-        const data = await response.json();
+        const { data } = await apiGet('/api/quiz', 'quiz');
+        if (!Array.isArray(data)) throw new Error('Failed to load activity');
 
         // Filter to this activity only, then normalize
         const filtered = data
@@ -97,27 +97,28 @@ export default function ActivityQuizScreen({ route, navigation }) {
 
   // ── Submit all collected answers to the backend ────────────────────────
   const submitToBackend = async (finalAnswers) => {
-    try {
-      const response = await fetch(`${BASE_URL}/api/submitActivityQuiz`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user?.id,
-          subject_id: subject?.id ?? activity?.subject_id,
-          activity_id: activity?.id,
-          answers: finalAnswers,
-        }),
-      });
-      const data = await response.json();
-      return { score: data.score, total: data.total };
-    } catch {
-      // If submit fails, calculate score locally as fallback
-      let score = 0;
-      questions.forEach((q) => {
-        if (finalAnswers[q.id] === q.correct_answer) score++;
-      });
-      return { score, total: questions.length };
+    const result = await enqueueOrSend('/api/submitActivityQuiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user?.id,
+        subject_id: subject?.id ?? activity?.subject_id,
+        activity_id: activity?.id,
+        answers: finalAnswers,
+      }),
+    });
+
+    if (result.ok && result.data) {
+      return { score: result.data.score, total: result.data.total };
     }
+
+    // Offline (queued for later sync) — calculate score locally so the
+    // student still sees an immediate result.
+    let score = 0;
+    questions.forEach((q) => {
+      if (finalAnswers[q.id] === q.correct_answer) score++;
+    });
+    return { score, total: questions.length };
   };
 
   const handleAutoSubmit = async () => {

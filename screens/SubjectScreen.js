@@ -9,7 +9,7 @@ import Loader from '../components/Loader';
 import SearchSubjects from '../components/SearchSubjects';
 import BottomNav from '../components/BottomNav';
 import { fetchProgressMap, getSubjectProgress } from '../utils/progress';
-import BASE_URL from '../config';
+import { apiGet } from '../utils/api';
 
 const FILTERS = ['All', 'In Progress', 'Done'];
 
@@ -57,11 +57,11 @@ export default function SubjectScreen({ navigation, route }) {
 
   const loadData = async () => {
     try {
-      const [subjectRes, progress] = await Promise.all([
-        fetch(`${BASE_URL}/api/subjects`).then((r) => r.json()),
+      const [{ data: subjectRes }, progress] = await Promise.all([
+        apiGet('/api/subjects', 'subjects'),
         fetchProgressMap(user?.id),
       ]);
-      setSubjects(subjectRes);
+      setSubjects(Array.isArray(subjectRes) ? subjectRes : []);
       setProgressMap(progress);
     } catch {
       // fail silently

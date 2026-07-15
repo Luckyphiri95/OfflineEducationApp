@@ -7,8 +7,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import colors from '../theme/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
-import BASE_URL from '../config';
 import { confirmAction } from '../utils/confirmAction';
+import { apiGet } from '../utils/api';
+import { enqueueOrSend } from '../utils/syncQueue';
 
 export default function ArticleDetailScreen({ route, navigation }) {
   const { article, user } = route.params || {};
@@ -21,7 +22,7 @@ export default function ArticleDetailScreen({ route, navigation }) {
 
   const loadComments = useCallback(async () => {
     try {
-      const data = await fetch(`${BASE_URL}/api/articles/${article.id}/comments`).then((r) => r.json());
+      const { data } = await apiGet(`/api/articles/${article.id}/comments`, `comments:${article.id}`);
       setComments(Array.isArray(data) ? data : []);
     } catch {
       // fail silently — article body/like state still usable offline of comments
@@ -33,40 +34,43 @@ export default function ArticleDetailScreen({ route, navigation }) {
   useFocusEffect(useCallback(() => { loadComments(); }, [loadComments]));
 
   const toggleLike = async () => {
-    // Optimistic update, matching this app's existing pattern of trusting the
-    // client and not blocking the UI on the network round-trip
+    // Optimistic update — kept regardless of online/offline: enqueueOrSend
+    // either sends it now or queues it to sync once back online, so there's
+    // no "failure" case here that should revert the tap.
     setLiked((prev) => !prev);
     setLikeCount((prev) => (liked ? Math.max(0, prev - 1) : prev + 1));
-    try {
-      await fetch(`${BASE_URL}/api/articles/${article.id}/like`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id }),
-      });
-    } catch {
-      // revert on failure
-      setLiked((prev) => !prev);
-      setLikeCount((prev) => (liked ? prev + 1 : Math.max(0, prev - 1)));
-    }
+    enqueueOrSend(`/api/articles/${article.id}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user?.id }),
+    });
   };
 
   const postComment = async () => {
     if (!commentText.trim()) return;
     setPosting(true);
-    try {
-      const res = await fetch(`${BASE_URL}/api/articles/${article.id}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: user?.id, body: commentText.trim() }),
-      });
-      if (!res.ok) throw new Error();
-      setCommentText('');
+    const body = commentText.trim();
+    setCommentText('');
+
+    const result = await enqueueOrSend(`/api/articles/${article.id}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: user?.id, body }),
+    });
+
+    if (result.queued) {
+      // Offline — show it immediately so the app doesn't feel broken;
+      // it'll be replaced by the real row once this syncs and the list reloads.
+      setComments((prev) => [
+        ...prev,
+        { id: `pending-${Date.now()}`, user_id: user?.id, username: user?.username, body, created_at: new Date().toISOString(), pending: true },
+      ]);
+    } else if (result.ok) {
       loadComments();
-    } catch {
+    } else {
       Alert.alert('Error', 'Could not post your comment. Please try again.');
-    } finally {
-      setPosting(false);
     }
+    setPosting(false);
   };
 
   const deleteComment = (comment) => {
@@ -74,16 +78,14 @@ export default function ArticleDetailScreen({ route, navigation }) {
       title: 'Delete Comment',
       message: 'Delete this comment? This cannot be undone.',
       onConfirm: async () => {
-        try {
-          await fetch(`${BASE_URL}/api/comments/${comment.id}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: user?.id, is_admin: !!user?.is_admin }),
-          });
-          loadComments();
-        } catch {
-          Alert.alert('Error', 'Could not delete comment.');
-        }
+        // Optimistic removal — safe even when queued offline, since the
+        // delete will still apply once synced.
+        setComments((prev) => prev.filter((c) => c.id !== comment.id));
+        await enqueueOrSend(`/api/comments/${comment.id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user?.id, is_admin: !!user?.is_admin }),
+        });
       },
     });
   };
@@ -125,8 +127,9 @@ export default function ArticleDetailScreen({ route, navigation }) {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.commentAuthor}>{c.username || 'Student'}</Text>
                     <Text style={styles.commentBody}>{c.body}</Text>
+                    {c.pending ? <Text style={styles.pendingText}>Sending when back online…</Text> : null}
                   </View>
-                  {canDelete(c) && (
+                  {canDelete(c) && !c.pending && (
                     <TouchableOpacity onPress={() => deleteComment(c)}>
                       <Text style={styles.deleteText}>Delete</Text>
                     </TouchableOpacity>
@@ -185,6 +188,7 @@ const styles = StyleSheet.create({
   },
   commentAuthor: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
   commentBody: { fontSize: 14, color: colors.textSecondary, marginTop: 3, lineHeight: 20 },
+  pendingText: { fontSize: 11, color: colors.placeholder, marginTop: 4, fontStyle: 'italic' },
   deleteText: { fontSize: 12, fontWeight: '700', color: colors.error, marginLeft: 10 },
   footer: {
     flexDirection: 'row', alignItems: 'center',

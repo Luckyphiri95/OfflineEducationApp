@@ -8,6 +8,7 @@ import colors from '../theme/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import BASE_URL from '../config';
+import { saveSession } from '../utils/session';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -45,6 +46,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
+      await saveSession(data.user);
       navigation.replace(isAdmin ? 'AdminDashboard' : 'Dashboard', { user: data.user });
     } catch (err) {
       setError(err.name === 'AbortError'

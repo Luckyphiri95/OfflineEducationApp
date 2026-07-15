@@ -4,8 +4,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import colors from '../theme/colors';
 import BottomNav from '../components/BottomNav';
 import Loader from '../components/Loader';
-import BASE_URL from '../config';
 import { fetchProgressMap } from '../utils/progress';
+import { apiGet } from '../utils/api';
 
 function ProgressBar({ pct }) {
   const barColor = pct >= 80 ? colors.badgeSuccessText : pct >= 50 ? colors.primary : colors.badgeWarningText;
@@ -39,13 +39,17 @@ export default function ProgressScreen({ navigation, route }) {
 
   const loadData = async () => {
     try {
-      const [subjectRes, resultsRes, progress, activityRes, paperRes] = await Promise.all([
-        fetch(`${BASE_URL}/api/subjects`).then((r) => r.json()),
-        fetch(`${BASE_URL}/api/results`).then((r) => r.json()),
+      const [subjectResp, resultsResp, progress, activityResp, paperResp] = await Promise.all([
+        apiGet('/api/subjects', 'subjects'),
+        apiGet('/api/results', 'results'),
         fetchProgressMap(user?.id),
-        fetch(`${BASE_URL}/api/activities`).then((r) => r.json()),
-        fetch(`${BASE_URL}/api/papers`).then((r) => r.json()),
+        apiGet('/api/activities', 'activities'),
+        apiGet('/api/papers', 'papers'),
       ]);
+      const subjectRes = subjectResp.data;
+      const resultsRes = resultsResp.data;
+      const activityRes = activityResp.data;
+      const paperRes = paperResp.data;
 
       setSubjects(Array.isArray(subjectRes) ? subjectRes : []);
       setProgressMap(progress);
@@ -53,9 +57,10 @@ export default function ProgressScreen({ navigation, route }) {
       setPapers(Array.isArray(paperRes) ? paperRes : []);
 
       // Filter to this user's results only
+      const safeResults = Array.isArray(resultsRes) ? resultsRes : [];
       const userResults = user?.id
-        ? resultsRes.filter((r) => r.user_id === user.id)
-        : resultsRes;
+        ? safeResults.filter((r) => r.user_id === user.id)
+        : safeResults;
 
       // Sort newest first by id
       setResults(userResults.sort((a, b) => b.id - a.id));
