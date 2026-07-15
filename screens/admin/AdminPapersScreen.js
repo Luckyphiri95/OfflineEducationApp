@@ -87,16 +87,26 @@ export default function AdminPapersScreen({ navigation }) {
         });
       }
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
       const res = await fetch(`${BASE_URL}/api/papers/${editingId}/file`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error();
+      clearTimeout(timeout);
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        throw new Error(`Server responded ${res.status}${bodyText ? `: ${bodyText}` : ''}`);
+      }
       const data = await res.json();
       setEditingFile({ filename: data.filename, original_name: data.original_name });
       loadPapers(selectedSubject);
-    } catch {
-      Alert.alert('Error', 'Failed to upload past paper PDF. Please try again.');
+    } catch (err) {
+      const detail = err.name === 'AbortError'
+        ? 'Request timed out after 60s — if this is the hosted backend, it may still be waking up from idle (can take up to a minute on first use); please try again.'
+        : (err.message || 'Unknown error');
+      Alert.alert('Error', `Failed to upload past paper PDF.\n\n${detail}`);
     } finally {
       setUploadingFile(false);
     }

@@ -78,19 +78,29 @@ export default function AdminSubjectsScreen({ navigation }) {
         });
       }
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
       const res = await fetch(`${BASE_URL}/api/subjects/${editingId}/guide`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error();
+      clearTimeout(timeout);
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        throw new Error(`Server responded ${res.status}${bodyText ? `: ${bodyText}` : ''}`);
+      }
       const data = await res.json();
       setEditingGuide({
         guide_filename: data.guide_filename,
         guide_original_name: data.guide_original_name,
       });
       load();
-    } catch {
-      Alert.alert('Error', 'Failed to upload study guide. Please try again.');
+    } catch (err) {
+      const detail = err.name === 'AbortError'
+        ? 'Request timed out after 60s — if this is the hosted backend, it may still be waking up from idle (can take up to a minute on first use); please try again.'
+        : (err.message || 'Unknown error');
+      Alert.alert('Error', `Failed to upload study guide.\n\n${detail}`);
     } finally {
       setUploadingGuide(false);
     }
