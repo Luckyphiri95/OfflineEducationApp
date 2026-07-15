@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, StatusBar, Platform, ActivityIndicator,
+  View, Text, StyleSheet, FlatList, StatusBar, Platform, ActivityIndicator, TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
@@ -46,6 +46,9 @@ export default function AdminProgressScreen({ navigation, route }) {
   const { user: currentUser } = route.params || {};
   const [learners, setLearners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedLearnerId, setSelectedLearnerId] = useState(null);
+  const [detailsByLearner, setDetailsByLearner] = useState({});
+  const [detailLoadingId, setDetailLoadingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -81,34 +84,97 @@ export default function AdminProgressScreen({ navigation, route }) {
     load();
   }, []));
 
+  const loadDetails = async (learner) => {
+    if (selectedLearnerId === learner.id && detailsByLearner[learner.id]) {
+      setSelectedLearnerId(null);
+      return;
+    }
+
+    if (detailsByLearner[learner.id]) {
+      setSelectedLearnerId(learner.id);
+      return;
+    }
+
+    setDetailLoadingId(learner.id);
+    try {
+      const data = await fetch(`${BASE_URL}/api/progress?user_id=${learner.id}&include_details=1`).then((r) => r.json());
+      setDetailsByLearner((prev) => ({ ...prev, [learner.id]: Array.isArray(data) ? data : [] }));
+      setSelectedLearnerId(learner.id);
+    } catch {
+      setDetailsByLearner((prev) => ({ ...prev, [learner.id]: [] }));
+      setSelectedLearnerId(learner.id);
+    } finally {
+      setDetailLoadingId(null);
+    }
+  };
+
   const renderItem = ({ item }) => {
     const isSelf = item.id === currentUser?.id;
+    const isSelected = selectedLearnerId === item.id;
+    const learnerDetails = detailsByLearner[item.id] || [];
+
     return (
-      <View style={styles.row}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.username?.[0]?.toUpperCase() || '?'}</Text>
-        </View>
-        <View style={styles.rowText}>
-          <View style={styles.nameRow}>
-            <Text style={styles.rowName}>{item.username}</Text>
-            {item.is_admin ? (
-              <View style={styles.adminBadge}><Text style={styles.adminBadgeText}>Admin</Text></View>
-            ) : null}
-            {isSelf ? (
-              <View style={styles.selfBadge}><Text style={styles.selfBadgeText}>You</Text></View>
-            ) : null}
+      <View style={styles.cardWrap}>
+        <TouchableOpacity style={styles.row} onPress={() => loadDetails(item)} activeOpacity={0.85}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{item.username?.[0]?.toUpperCase() || '?'}</Text>
           </View>
-          <Text style={styles.rowEmail}>{item.email}</Text>
-          <Text style={styles.rowMeta}>Joined {formatDate(item.created_at)}</Text>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressLabel}>{item.status}</Text>
-            <Text style={styles.progressPct}>{item.progressPct}%</Text>
+          <View style={styles.rowText}>
+            <View style={styles.nameRow}>
+              <Text style={styles.rowName}>{item.username}</Text>
+              {item.is_admin ? (
+                <View style={styles.adminBadge}><Text style={styles.adminBadgeText}>Admin</Text></View>
+              ) : null}
+              {isSelf ? (
+                <View style={styles.selfBadge}><Text style={styles.selfBadgeText}>You</Text></View>
+              ) : null}
+            </View>
+            <Text style={styles.rowEmail}>{item.email}</Text>
+            <Text style={styles.rowMeta}>Joined {formatDate(item.created_at)}</Text>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>{item.status}</Text>
+              <Text style={styles.progressPct}>{item.progressPct}%</Text>
+            </View>
+            <ProgressBar pct={item.progressPct} />
+            <Text style={styles.rowMeta}>
+              {item.completedSubjects}/{item.subjectCount || 0} subject{item.subjectCount === 1 ? '' : 's'} completed
+            </Text>
           </View>
-          <ProgressBar pct={item.progressPct} />
-          <Text style={styles.rowMeta}>
-            {item.completedSubjects}/{item.subjectCount || 0} subject{item.subjectCount === 1 ? '' : 's'} completed
-          </Text>
-        </View>
+        </TouchableOpacity>
+
+        {isSelected ? (
+          <View style={styles.detailsCard}>
+            <Text style={styles.detailsTitle}>Completed content</Text>
+            {detailLoadingId === item.id ? (
+              <View style={styles.detailsLoading}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.detailsHint}>Loading completed items...</Text>
+              </View>
+            ) : learnerDetails.length > 0 ? (
+              learnerDetails.map((subject) => (
+                <View key={subject.subject_id} style={styles.subjectCard}>
+                  <View style={styles.subjectHeader}>
+                    <Text style={styles.subjectTitle}>{subject.subject_name || `Subject ${subject.subject_id}`}</Text>
+                    <Text style={styles.subjectMeta}>{subject.completed}/{subject.total}</Text>
+                  </View>
+                  {subject.details?.map((detail) => (
+                    <View key={`${subject.subject_id}-${detail.type}-${detail.id}`} style={styles.detailRow}>
+                      <Text style={[styles.detailBullet, detail.completed ? styles.detailBulletDone : styles.detailBulletPending]}>
+                        {detail.completed ? '✓' : '○'}
+                      </Text>
+                      <View style={styles.detailText}>
+                        <Text style={styles.detailTitle}>{detail.title}</Text>
+                        <Text style={styles.detailType}>{detail.type === 'guide' ? 'Study guide' : detail.type === 'paper' ? 'Past paper' : 'Activity'}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ))
+            ) : (
+              <Text style={styles.detailsHint}>No completed content recorded for this learner yet.</Text>
+            )}
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -153,13 +219,15 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#fff', fontSize: 26, fontWeight: '700' },
   headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
   list: { padding: 16 },
+  cardWrap: {
+    marginBottom: 10,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: colors.surface,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 10,
     shadowColor: '#000',
     shadowOpacity: 0.03,
     shadowRadius: 6,
@@ -210,6 +278,44 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   barFill: { height: 8, backgroundColor: colors.primary, borderRadius: 4 },
+  detailsCard: {
+    backgroundColor: '#f8fbff',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  detailsTitle: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, marginBottom: 8 },
+  detailsLoading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detailsHint: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
+  subjectCard: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  subjectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  subjectTitle: { fontSize: 13, fontWeight: '700', color: colors.textPrimary, flex: 1 },
+  subjectMeta: { fontSize: 12, color: colors.primary, fontWeight: '700' },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 6,
+  },
+  detailBullet: { fontSize: 14, marginRight: 8, marginTop: 1 },
+  detailBulletDone: { color: colors.badgeSuccessText },
+  detailBulletPending: { color: colors.placeholder },
+  detailText: { flex: 1 },
+  detailTitle: { fontSize: 12, color: colors.textPrimary, fontWeight: '600' },
+  detailType: { fontSize: 11, color: colors.textSecondary, marginTop: 1 },
   loadingBox: {
     flex: 1,
     justifyContent: 'center',
