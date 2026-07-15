@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Platform, ActivityIndicator } from 'react-native';
 import colors from '../theme/colors';
+import { getLocalPdfUri } from '../utils/pdfCache';
 
 // react-native-webview has no web implementation, so on web we render a
 // plain <iframe> (react-native-web renders through react-dom, so raw DOM
@@ -8,7 +9,17 @@ import colors from '../theme/colors';
 const NativeWebView = Platform.OS === 'web' ? null : require('react-native-webview').WebView;
 
 export default function StudyGuideViewerScreen({ route, navigation }) {
-  const { pdfUrl, subjectName } = route.params || {};
+  const { pdfUrl: remotePdfUrl, subjectName } = route.params || {};
+  const [pdfUrl, setPdfUrl] = useState(Platform.OS === 'web' ? remotePdfUrl : null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !remotePdfUrl) return;
+    let cancelled = false;
+    getLocalPdfUri(remotePdfUrl).then((uri) => {
+      if (!cancelled) setPdfUrl(uri);
+    });
+    return () => { cancelled = true; };
+  }, [remotePdfUrl]);
 
   return (
     <View style={styles.page}>
@@ -27,6 +38,10 @@ export default function StudyGuideViewerScreen({ route, navigation }) {
           style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
           title={subjectName || 'Study Guide'}
         />
+      ) : !pdfUrl ? (
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       ) : (
         <NativeWebView source={{ uri: pdfUrl }} style={styles.webview} />
       )}
@@ -46,4 +61,5 @@ const styles = StyleSheet.create({
   backText: { color: 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: '500' },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: '700' },
   webview: { flex: 1 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
