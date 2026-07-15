@@ -138,10 +138,84 @@ const deleteUser = (req, res) => {
 };
 
 
+// ======================
+// PASSWORD RESET REQUESTS
+// ======================
+// No email sending in this demo — a student submits a request, an admin
+// sees it in the admin panel and sets a new password for that account
+// directly.
+const requestPasswordReset = (req, res) => {
+  const { email, message } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "email is required" });
+  }
+
+  db.run(
+    `INSERT INTO password_reset_requests (email, message) VALUES (?, ?)`,
+    [email, message || null],
+    function (err) {
+      if (err) {
+        return res.status(500).json({ message: "Database error" });
+      }
+      return res.status(201).json({ message: "Password reset request sent to admin", id: this.lastID });
+    }
+  );
+};
+
+const getResetRequests = (req, res) => {
+  db.all(
+    `SELECT * FROM password_reset_requests ORDER BY created_at DESC`,
+    [],
+    (err, rows) => {
+      if (err) {
+        return res.status(500).json({ message: "Database error" });
+      }
+      return res.status(200).json(rows);
+    }
+  );
+};
+
+const resolveResetRequest = (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ message: "newPassword must be at least 6 characters" });
+  }
+
+  db.get(`SELECT email FROM password_reset_requests WHERE id = ?`, [id], (err, request) => {
+    if (err) {
+      return res.status(500).json({ message: "Database error" });
+    }
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    const hashedPassword = bcrypt.hashSync(newPassword, 10);
+    db.run(`UPDATE users SET password = ? WHERE email = ?`, [hashedPassword, request.email], function (userErr) {
+      if (userErr) {
+        return res.status(500).json({ message: "Database error" });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ message: "No user found with that email" });
+      }
+
+      db.run(`UPDATE password_reset_requests SET status = 'resolved' WHERE id = ?`, [id], () => {
+        return res.status(200).json({ message: `Password reset for ${request.email}` });
+      });
+    });
+  });
+};
+
+
 module.exports = {
   register,
   login,
   getUsers,
   promoteToAdmin,
-  deleteUser
+  deleteUser,
+  requestPasswordReset,
+  getResetRequests,
+  resolveResetRequest
 };

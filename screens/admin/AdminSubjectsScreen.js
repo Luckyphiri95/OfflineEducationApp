@@ -71,11 +71,11 @@ export default function AdminSubjectsScreen({ navigation }) {
         // On web, DocumentPicker returns a real browser File object at file.file
         formData.append('pdf', file.file, file.name || 'study-guide.pdf');
       } else {
-        formData.append('pdf', {
-          uri: file.uri,
-          name: file.name || 'study-guide.pdf',
-          type: 'application/pdf',
-        });
+        // Newer React Native networking rejects the classic {uri,name,type}
+        // object ("Unsupported FormDataPart implementation") — fetching the
+        // local file back into a real Blob is the reliable cross-version fix.
+        const fileBlob = await (await fetch(file.uri)).blob();
+        formData.append('pdf', fileBlob, file.name || 'study-guide.pdf');
       }
 
       const controller = new AbortController();

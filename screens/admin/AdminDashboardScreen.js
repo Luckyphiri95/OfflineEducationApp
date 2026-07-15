@@ -140,6 +140,12 @@ export default function AdminDashboardScreen({ navigation, route }) {
           subtitle="Track student progress and drill into completed content"
           onPress={() => navigation.navigate('AdminProgress', { user })}
         />
+        <NavTile
+          icon="🔑"
+          title="Password Resets"
+          subtitle="Reset a student's password on request"
+          onPress={() => navigation.navigate('AdminPasswordResets', { user })}
+        />
       </ScrollView>
     </View>
   );

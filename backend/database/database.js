@@ -286,6 +286,21 @@ db.serialize(() => {
   `);
 });
 
+// ======================
+// CREATE PASSWORD RESET REQUESTS TABLE
+// ======================
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS password_reset_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      message TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+});
+
 
 
 

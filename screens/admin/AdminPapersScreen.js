@@ -80,11 +80,11 @@ export default function AdminPapersScreen({ navigation }) {
       if (Platform.OS === 'web') {
         formData.append('pdf', file.file, file.name || 'past-paper.pdf');
       } else {
-        formData.append('pdf', {
-          uri: file.uri,
-          name: file.name || 'past-paper.pdf',
-          type: 'application/pdf',
-        });
+        // Newer React Native networking rejects the classic {uri,name,type}
+        // object ("Unsupported FormDataPart implementation") — fetching the
+        // local file back into a real Blob is the reliable cross-version fix.
+        const fileBlob = await (await fetch(file.uri)).blob();
+        formData.append('pdf', fileBlob, file.name || 'past-paper.pdf');
       }
 
       const controller = new AbortController();

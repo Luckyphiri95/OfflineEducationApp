@@ -6,9 +6,11 @@ import {
 import colors from '../theme/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import BASE_URL from '../config';
 
 export default function ForgotPasswordScreen({ navigation }) {
   const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
@@ -21,11 +23,19 @@ export default function ForgotPasswordScreen({ navigation }) {
     setError('');
     setLoading(true);
     try {
-      // TODO: replace with real API call when backend supports it
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(`${BASE_URL}/api/auth/reset-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, message }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error();
       setSent(true);
     } catch (err) {
-      setError('Something went wrong. Please try again.');
+      setError('Could not send your request. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -36,11 +46,12 @@ export default function ForgotPasswordScreen({ navigation }) {
       <View style={styles.successPage}>
         <StatusBar barStyle="light-content" backgroundColor={colors.primary} />
         <View style={styles.successCard}>
-          <Text style={styles.successIcon}>✉️</Text>
-          <Text style={styles.successTitle}>Check Your Email</Text>
+          <Text style={styles.successIcon}>📨</Text>
+          <Text style={styles.successTitle}>Request Sent</Text>
           <Text style={styles.successMessage}>
-            We sent a password reset link to{' '}
+            An admin will reset the password for{' '}
             <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{email}</Text>
+            {' '}and let you know your new password.
           </Text>
           <Button title="Back to Login" onPress={() => navigation.navigate('Login')} />
         </View>
@@ -58,7 +69,7 @@ export default function ForgotPasswordScreen({ navigation }) {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.heroTitle}>Forgot Password?</Text>
-        <Text style={styles.heroSubtitle}>Enter your email and we'll send you a reset link</Text>
+        <Text style={styles.heroSubtitle}>Send a request and an admin will reset your password for you</Text>
       </View>
 
       {/* White form */}
@@ -71,11 +82,17 @@ export default function ForgotPasswordScreen({ navigation }) {
           keyboardType="email-address"
           autoCapitalize="none"
         />
+        <Input
+          label="Message (optional)"
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Anything the admin should know"
+        />
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <Button
-          title={loading ? 'Sending...' : 'Send Reset Link'}
+          title={loading ? 'Sending...' : 'Send Request to Admin'}
           onPress={handleReset}
           disabled={loading}
         />
